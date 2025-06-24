@@ -5,20 +5,21 @@ import com.fasterxml.jackson.core.JsonToken.*
 import com.typesafe.scalalogging.LazyLogging
 
 import java.io.InputStream
-import scala.annotation.tailrec
+import scala.annotation.{tailrec, unused}
 import scala.language.postfixOps
 
 type JacksonParser = com.fasterxml.jackson.core.JsonParser
 
 class JsonLoader(private val io: InputStream,
                  private val factory: JsonFactory) extends Logger("JsonLoader") {
+
     def load(ontology: Ontology): Unit = {
         val parser = factory.createParser(io)
         parse(parser, JBOFState(parser, ontology))
     }
 
     @tailrec
-    private def parse(parser: JacksonParser, state: ParseState): Unit = {
+    private def parse(parser: JacksonParser, state: ParserState): Unit = {
         val token = parser.nextToken()
         if token == null then ()
         else
@@ -54,68 +55,72 @@ private sealed trait Logger(id: String) extends LazyLogging {
     }
 }
 
-trait ParseState(broader: ParseState = null, parser: JacksonParser, ontology: Ontology) extends Logger {
-    def nextState(id: String, token: JsonToken): ParseState = this
+trait ParserState(outer: ParserState = null, parser: JacksonParser, ontology: Ontology) extends Logger {
+    def nextState(id: String, token: JsonToken): ParserState = this
 
-    def throwJPEx[T](scope: T, msg: String): T = {
+    protected def invalidState[T >: ParserState](id: String, token: JsonToken): T = {
+        throwJPEx(this, "Invalid State: " + id + "/" + token)
+    }
+
+    def throwJPEx[T](@unused scope: T, msg: String): T = {
         val ex = new JsonParserException(msg)
         logger.error(msg, ex)
         throw ex
     }
 }
 case class JBOFState(parser: JacksonParser, ontology: Ontology)
-        extends ParseState(parser = parser, ontology = ontology), Logger("BOF") {
-    override def nextState(id: String, token: JsonToken): ParseState = {
+        extends ParserState(parser = parser, ontology = ontology), Logger("BOF") {
+    override def nextState(id: String, token: JsonToken): ParserState = {
         token match {
             case START_OBJECT => JObjState(id, this, parser, ontology)
             case START_ARRAY => JListState(id, this, parser, ontology)
-            case _ => throwJPEx(this, "ummmm: " + id + "/" + token)
+            case _ => invalidState(id, token)
         }
     }
 }
-case class JObjState(id: String, outer: ParseState, parser: JacksonParser, ontology: Ontology)
-        extends ParseState(outer, parser, ontology), Logger(id) {
-    override def nextState(id: String, token: JsonToken): ParseState = {
+case class JObjState(id: String, outer: ParserState, parser: JacksonParser, ontology: Ontology)
+        extends ParserState(outer, parser, ontology), Logger(id) {
+    override def nextState(id: String, token: JsonToken): ParserState = {
         token match {
             case END_OBJECT => outer
-            case FIELD_NAME => {
+            case FIELD_NAME =>
                 debug((id, token))
                 JPropState(this, parser, ontology)
-            }
-            case _ => throwJPEx(this, "ummmm: " + id + "/" + token)
+            case VALUE_EMBEDDED_OBJECT =>
+                debug("VALUE_EMBEDDED_OBJECT - CURRENTLY UNSUPPORTED")
+                throwJPEx(this, "VALUE_EMBEDDED_OBJECT @" + id)
+            case _ => invalidState(id, token)
         }
     }
 }
 case class JListState(listID: String, outer: JBOFState | JPropState, parser: JacksonParser, ontology: Ontology)
-        extends ParseState(outer, parser, ontology), Logger("ARRAY") {
-    override def nextState(id: String, token: JsonToken): ParseState = {
+        extends ParserState(outer, parser, ontology), Logger("ARRAY") {
+
+    override def nextState(id: String, token: JsonToken): ParserState = {
         (token, outer) match {
             case (START_OBJECT, _: JBOFState) => JObjState(id, this, parser, ontology)
-            case (START_OBJECT, _: JPropState) => {
+            case (START_OBJECT, _: JPropState) =>
                 debug((listID, token))
                 val repID = ontology.addRepEntityAnon(listID)
                 JObjState(repID, this, parser, ontology)
-            }  // 'id' is the property this is assigned to
             case (END_OBJECT, _) => this
             case (END_ARRAY, _) => outer
             // TODO: if we see a scalar value then we should keep a list of potential type bindings
-            case _ => throwJPEx(this, "ummmm: " + id + "/" + token)
+            case _ => invalidState(id, token)
         }
     }
 }
 case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontology)
-        extends ParseState(outer, parser, ontology), Logger(outer.id) {
+        extends ParserState(outer, parser, ontology), Logger(outer.id) {
 
-    def id: String = outer.id
-
-    override def nextState(id: String, token: JsonToken): ParseState = {
+    override def nextState(id: String, token: JsonToken): ParserState = {
 
         def addRepProp(sid: String)(ent: String => Unit): Unit = {
             ent(sid)
             if outer.id != null then ontology.addMemberProperty(outer.id, sid)
         }
 
-        def addAttr[T](att: T): ParseState = {
+        def addAttr[T](att: T): ParserState = {
             val underlying = Scalar(att)
             debug(("write value", id, underlying.asType[T], underlying.xsdType, token))
             ontology.addRepresentationAttribute(outer.id, id, underlying)
@@ -152,7 +157,7 @@ case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontolog
                 debug("NON_BLOCKING I/O OP - CURRENTLY UNSUPPORTED")
                 throwJPEx(this, "Non blocking I/O @" + id)
             case _ =>
-                throwJPEx(this, "Unsupported Operation " + token + "@" + id)
+                invalidState(id, token)
         }
     }
 }

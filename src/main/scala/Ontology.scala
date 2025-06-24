@@ -16,7 +16,8 @@ import scala.collection.mutable
 import scala.language.postfixOps;
 
 class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
-                           val manager: OWLOntologyManager) extends LazyLogging {
+                        val manager: OWLOntologyManager) extends LazyLogging {
+
     private val counter = new AtomicLong(Integer.MAX_VALUE)
     private val factory: OWLDataFactory = manager.getOWLDataFactory
     private val morkBaseIRI = IRI.create(MORK_ONTOLOGY_BASE_IRI)
@@ -24,12 +25,27 @@ class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
     private val mappingPrefixManager = new DefaultPrefixManager(null, null, MAPPING_ONTOLOGY_BASE_IRI + "#")
     private val anonymousEntities: mutable.Set[String] = mutable.HashSet.empty
 
+    private val morkAttribute: OWLClass = getMorkClass(":Attribute")
+    private val morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
+    private val morkAnonEntity: OWLClass = getMorkClass(":AnonymousEntity")
+    private val morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
+    private val morkEntity: OWLClass = getMorkClass(":Entity")
+    private val morkEntityDef: OWLClassExpression = morkEntity.getNNF
+    private val morkArray: OWLClass = getMorkClass(":Array")
+    private val morkArrayDef: OWLClassExpression = morkArray.getNNF
+
+    private def getMorkClass(shortName: String) = {
+        factory.getOWLClass(shortName, morkPrefixManager)
+    }
+
     private def init(): Unit = {
         val iriMapper = new SimpleIRIMapper(morkBaseIRI, morkIRI)
         manager.getIRIMappers.add(iriMapper)
         manager.loadOntology(morkBaseIRI)
+
         val skosImport = factory.getOWLImportsDeclaration(IRI.create(SKOS_IRI))
         manager.applyChange(new AddImport(ontology, skosImport))
+
         val morkImport = factory.getOWLImportsDeclaration(morkBaseIRI)
         manager.applyChange(new AddImport(ontology, morkImport))
 
@@ -156,20 +172,6 @@ class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
         if id.startsWith("Rep_") then id
         else "Rep_" + id
     }
-
-    private def morkAttribute: OWLClass = getMorkClass(":Attribute")
-    private def morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
-    private def morkAnonEntity: OWLClass = getMorkClass(":AnonymousEntity")
-    private def morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
-    private def morkEntity: OWLClass = getMorkClass(":Entity")
-    private def morkEntityDef: OWLClassExpression = morkEntity.getNNF
-    private def morkArray: OWLClass = getMorkClass(":Array")
-    private def morkArrayDef: OWLClassExpression = morkArray.getNNF
-
-    private def getMorkClass(shortName: String) = {
-        factory.getOWLClass(shortName, morkPrefixManager)
-    }
-
 }
 
 object Ontology {
