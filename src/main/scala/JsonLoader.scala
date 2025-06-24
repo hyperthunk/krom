@@ -180,6 +180,32 @@ given Typeable[Scalar] with
     extension (w: Scalar) def asString: String = w.value.toString
     extension (w: Scalar) def xsdType: DataType = {
         //TODO: this is SO gross, refactor to use higher order types...
+        /* Co-Pilot Suggests:
+        trait XsdTypeMapper[A] {
+          def xsdType: DataType
+        }
+
+        object XsdTypeMapper {
+          given XsdTypeMapper[Int] with { def xsdType = XsdInt }
+          given XsdTypeMapper[Float] with { def xsdType = XsdFloat }
+          given XsdTypeMapper[Double] with { def xsdType = XsdFloat } // Or a Double variant
+          given XsdTypeMapper[Boolean] with { def xsdType = XsdBool }
+          given XsdTypeMapper[String] with { def xsdType = XsdString }
+        }
+
+        class Scalar(val value: Any) {
+          override def toString: String = s"JsonValue($value)"
+          def xsdType: DataType = value match {
+            case null      => XsdNull
+            case v: Int    => summon[XsdTypeMapper[Int]].xsdType
+            case v: Float  => summon[XsdTypeMapper[Float]].xsdType
+            case v: Double => summon[XsdTypeMapper[Double]].xsdType
+            case v: Boolean=> summon[XsdTypeMapper[Boolean]].xsdType
+            case v: String => summon[XsdTypeMapper[String]].xsdType
+            case _         => XsdString // fallback
+          }
+        }
+         */
         w.value match {
             case _: Int => XsdInt
             case _: Float => XsdFloat
