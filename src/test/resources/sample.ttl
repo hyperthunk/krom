@@ -1,0 +1,836 @@
+@prefix : <http://www.nebularis.org/hyperthunk/DataRep/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@base <http://www.nebularis.org/hyperthunk/DataRep/> .
+
+<http://www.nebularis.org/hyperthunk/DataRep> rdf:type owl:Ontology ;
+                                               owl:imports <http://www.w3.org/2004/02/skos/core> .
+
+#################################################################
+#    Object Properties
+#################################################################
+
+###  http://www.nebularis.org/hyperthunk/DataRep#closeMapping
+:closeMapping rdf:type owl:ObjectProperty ;
+              rdfs:subPropertyOf :relatedMapping ;
+              rdfs:label "has close mapping" ;
+              <http://www.w3.org/2004/02/skos/core#definition> "used to link two mappings that are sufficiently similar that they can be used interchangeably in some applications." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep#deferredMapping
+:deferredMapping rdf:type owl:ObjectProperty ;
+                 rdfs:subPropertyOf :relatedMapping ;
+                 rdfs:label "has deferred mapping" ;
+                 <http://www.w3.org/2004/02/skos/core#definition> "used to defer to a mapping where the subject is dependent on the result of applying the object (mapping) and obtaining the outcome" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep#exactMapping
+:exactMapping rdf:type owl:ObjectProperty ;
+              rdfs:subPropertyOf :closeMapping ;
+              rdfs:label "has exact mapping" ;
+              <http://www.w3.org/2004/02/skos/core#definition> "used to link two mappings, indicating a high degree of confidence that they can be used interchangeably across a wide range of applications." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep#hasConcept
+:hasConcept rdf:type owl:ObjectProperty ;
+            rdfs:subPropertyOf owl:topObjectProperty ;
+            owl:inverseOf <http://www.w3.org/2004/02/skos/core#inScheme> .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/associativeBroader
+:associativeBroader rdf:type owl:ObjectProperty ;
+                    rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#broader> ;
+                    owl:inverseOf :associativeNarrower ;
+                    rdfs:label "associative broader" ;
+                    <http://www.w3.org/2004/02/skos/core#definition> "extends skos:broader with the concept of associativity" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/associativeNarrower
+:associativeNarrower rdf:type owl:ObjectProperty ;
+                     rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#narrower> ;
+                     rdfs:label "associative narrower" ;
+                     <http://www.w3.org/2004/02/skos/core#definition> "extends skos:narrower with the concept of associativity" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/broadABoxCategoryMatch
+:broadABoxCategoryMatch rdf:type owl:ObjectProperty ;
+                        rdfs:subPropertyOf :broadCategoryMatch ;
+                        owl:inverseOf :narrowABoxCategoryMatch ;
+                        rdfs:domain [ owl:intersectionOf ( :DataMapping
+                                                           [ rdf:type owl:Restriction ;
+                                                             owl:onProperty :broadTBoxCategoryMatch ;
+                                                             owl:someValuesFrom owl:Thing
+                                                           ]
+                                                         ) ;
+                                      rdf:type owl:Class
+                                    ] ;
+                        rdfs:label "has board a-box category match" ;
+                        <http://www.w3.org/2004/02/skos/core#altLabel> "has a-box super-category match" ;
+                        <http://www.w3.org/2004/02/skos/core#definition> "used to state a mapping link where the subject maps to a broader category via object-property link to an individual that represents the Hyperonym (i.e., the more specific thing in the A-Box of the mapped concept scheme)" ;
+                        <http://www.w3.org/2004/02/skos/core#scopeNote> """An ABox category match may apply either before or after a datum is to be individuated. In either case, the operation is implied to be idempotent.
+
+An ABox category match implies the presence of both a TBox match (to the object property over which the relationship is to be defined) and a skos:mappingRelation to the owl:Individual in the a-box, as described in the domains for this property.""" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/broadCategoryMatch
+:broadCategoryMatch rdf:type owl:ObjectProperty ;
+                    rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#broadMatch> ;
+                    owl:inverseOf :narrowCategoryMatch .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/broadTBoxCategoryMatch
+:broadTBoxCategoryMatch rdf:type owl:ObjectProperty ;
+                        rdfs:subPropertyOf :broadCategoryMatch ;
+                        owl:inverseOf :narrowTBoxCategoryMatch ;
+                        rdfs:domain [ owl:intersectionOf ( :DataMapping
+                                                           [ rdf:type owl:Restriction ;
+                                                             owl:onProperty :exactTBoxMatch ;
+                                                             owl:someValuesFrom owl:Thing
+                                                           ]
+                                                         ) ;
+                                      rdf:type owl:Class
+                                    ] ;
+                        rdfs:label "has broad t-box category match" ;
+                        <http://www.w3.org/2004/02/skos/core#altLabel> "has t-box super-category match" ;
+                        <http://www.w3.org/2004/02/skos/core#definition> "used to define a hyperonymic, categorical relationship between concepts in different concept schemes, specifically modelling the subject as being in an owl:subclassOf relationship with the object" ;
+                        <http://www.w3.org/2004/02/skos/core#scopeNote> "A TBox category must be applied before a datum can be individuated, since it implies the existence of an owl:Class not originally present in an OntologicalScheme. The implication here is that the operation resulting from this axiom is idempotent." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/broaderMapping
+:broaderMapping rdf:type owl:ObjectProperty ;
+                rdfs:subPropertyOf :relatedMapping ;
+                owl:inverseOf :narrowerMapping ;
+                rdfs:label "has broader mapping" ;
+                <http://www.w3.org/2004/02/skos/core#definition> "Relates a mapping to a mapping that is more general (less specific)" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/compositeBroader
+:compositeBroader rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf :associativeBroader ;
+                  owl:inverseOf :compositeNarrower ;
+                  rdfs:label "composite broader" ;
+                  <http://www.w3.org/2004/02/skos/core#definition> "extends associativeBroader with the concept of composition (wherein the narrower/composed concept's existence is conditional upon the broader/composing)" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/compositeBroaderMapping
+:compositeBroaderMapping rdf:type owl:ObjectProperty ;
+                         rdfs:subPropertyOf :broaderMapping ;
+                         owl:inverseOf :compositeNarrowerMapping ;
+                         rdfs:label "has composite broader mapping" ;
+                         rdfs:seeAlso :compositeNarrowerMapping ;
+                         <http://www.w3.org/2004/02/skos/core#definition> "compositeBroaderMapping is used to compose mappings into a directed acyclic graph. The subject mapping is the component part of the object mapping. This is the inverse of compositeNarrowerMapping." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/compositeNarrower
+:compositeNarrower rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf :associativeNarrower ;
+                   rdfs:label "composite narrower" ;
+                   <http://www.w3.org/2004/02/skos/core#definition> "extends associativeBroader with the concept of composition (wherein the narrower/composed concept's existence is conditional upon the broader/composing)" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/compositeNarrowerMapping
+:compositeNarrowerMapping rdf:type owl:ObjectProperty ;
+                          rdfs:subPropertyOf :narrowerMapping ;
+                          rdfs:comment "A concept in a TaxonomyScheme may well be broken down into multiple axioms when mapped to an OntologicalScheme. In this case, the digraph of mapping instructions can be constructed by relating mappings using this (and its inverse) property." ;
+                          rdfs:label "has composite narrower mapping" ;
+                          rdfs:seeAlso :compositeBroaderMapping ;
+                          <http://www.w3.org/2004/02/skos/core#definition> "compositeNarrowerMapping is used to compose mappings into a directed acyclic graph. The object mapping is the component part of the subject mapping. This is the inverse of compositeBroaderMapping." ;
+                          <http://www.w3.org/2004/02/skos/core#example> """Take some representation scheme, mapped from json: 
+
+{
+    \"aardvarkName\": \"Peter\",
+    \"aardvarkSex\": \"M\"
+}
+
+This will yield two attributes, to which we will map three concepts in a concept scheme: aardvark, aardvark_name, and aardvark_sex.
+
+In our ontology, we may wish to model aardvark within the t-box of the ontology:
+
+:Aardvark rdf:type owl:Class;
+            rdfs:subClassOf :Animal .
+
+In this case, an input datum for aardvark will require that we define an individual as a member of that class before individuating the input record such that DataTypeProperty assertions can be matched in order to store the name and sex of the animal.
+
+Or indeed we might be required to model this by relating our new individual to some other fact within the a-box, adding meaning via object properties or annotations, eg:
+
+:Aardvark rdf:type owl:NamedIndividual ;
+           <http://www.w3.org/2004/02/skos/core#narrowerTransitive> :Animal .
+
+In either case, we are required to undertake multiple steps to individuate the record before we can begin to process the attributes that belong to (i.e. are narrower within) its concept scheme. This will yield a composition of mappings in order to create the necessary digraph in the target ontology scheme.
+
+:MapAardvarkClass rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:DataMapping ;
+            broadTBoxCategoryMatch ont:Animal ;
+            compositeNarrowerMapping :MapAardvarkIndividual ;
+            conceptName \"Aardvark\" .
+
+:MapAardvarkIndividual rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:Datum ;
+            datarep:deferredMapping :MapAardvarkClass ;
+            iri \"http://example.org/Animals/NewAardvark\" .
+
+Subsequent mappings (for name and sex) may rely on this mapping as a hypothesis.""" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/conceptScheme
+:conceptScheme rdf:type owl:ObjectProperty ;
+               rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#inScheme> ;
+               rdfs:range :TaxonomyScheme .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/digraphMatch
+:digraphMatch rdf:type owl:ObjectProperty ;
+              rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#broadMatch> ;
+              owl:inverseOf :digraphOf ;
+              rdfs:range :Digraph ;
+              rdfs:label "has digraph match" ;
+              <http://www.w3.org/2004/02/skos/core#definition> "is used to state a hierarchical mapping link between conceptual resources in different concept schemes, where one concept is mapped to a directed (sub-)graph of related concepts." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/digraphOf
+:digraphOf rdf:type owl:ObjectProperty ;
+           rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#narrowMatch> ;
+           rdfs:domain :Digraph ;
+           rdfs:label "is digraph match from" ;
+           <http://www.w3.org/2004/02/skos/core#definition> "digraphFrom is used to state a hierarchical mapping link between conceptual resources in different concept schemes, where concepts belong to a directed (sub-)graph that relates back to some parent concept (in another scheme)." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/elementType
+:elementType rdf:type owl:ObjectProperty ;
+             rdfs:subPropertyOf :compositeNarrower ;
+             rdfs:domain :Collection ;
+             rdfs:range :CollectionElement .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/exactTBoxMatch
+:exactTBoxMatch rdf:type owl:ObjectProperty ;
+                rdfs:subPropertyOf :intransitiveExactMatch .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/format
+:format rdf:type owl:ObjectProperty ;
+        rdfs:subPropertyOf owl:topObjectProperty ;
+        rdfs:domain :RepresentationScheme ;
+        rdfs:range :SerializationFormat .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/hypothesisMapping
+:hypothesisMapping rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf :relatedMapping ;
+                   rdfs:label "has hypothesis mapping" ;
+                   rdfs:seeAlso :compositeNarrowerMapping ;
+                   <http://www.w3.org/2004/02/skos/core#definition> "used to provide a mapping (object) that is being used as a hypothesis in support of the (subject) mapping's postulated match" ;
+                   <http://www.w3.org/2004/02/skos/core#example> """A hypothesis mapping can be used to support the weighting for another mapping. Borrowing the \"aardvark\" datum mapping example from the compositeNarrowerMapping skos:example, we can see the the concept mapping of aardvark_name may rely on the \"Aardvark Class\" mapping as a hypothesis, since if we have not mapped the axiom for the whole, then the part cannot be mapped either.
+
+:Aardvark rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:DataConcept ;
+            datarep:conceptScheme :Animals_Taxo ;
+            skos:closeMatch :MapAardvarkClass ;
+            datarep:compositeNarrower :Aardvark_Name .
+
+:Aardvark_Name rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:DataConcept ;
+            datarep:conceptScheme :Animals_Taxo ;
+            datarep:compositeBroader :Aardvark ;
+            skos:closeMatch :MapAardvark_Name .
+
+:MapAardvark_Name rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:DataMapping ;
+            datarep:hypothesisMapping :MapAardvarkClass ;
+            skos:closeMatch :Ont_prop_Animal_Name .
+
+:MapAardvarkClass rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:DataMapping ;
+            broadClassMatch ont:Animal ;
+            compositeNarrowerMapping :MapAardvarkIndividual ;
+            conceptName \"Aardvark\" .
+
+:MapAardvarkIndividual rdf:type owl:NamedIndividual ;
+            rdfs:subClassOf datarep:Datum ;
+            iri \"http://example.org/Animals/NewAardvark\" .
+
+This is a somewhat unnecessary hypothesis, since it is assumed that a processing logic would traverse the concept scheme for the taxa and fail the parent (aardvark) mapping before arriving at its component properties, however it provides an illustration of the use of this construct.""" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/intransitiveExactMatch
+:intransitiveExactMatch rdf:type owl:ObjectProperty ;
+                        rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#closeMatch> ;
+                        rdf:type owl:SymmetricProperty ;
+                        rdfs:label "has (intransitive) exact match" ;
+                        <http://www.w3.org/2004/02/skos/core#definition> "intransitive version of skos:exactMatch" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/mappingScheme
+:mappingScheme rdf:type owl:ObjectProperty ;
+               rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#inScheme> ;
+               rdfs:range :MappingScheme .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/memberProperty
+:memberProperty rdf:type owl:ObjectProperty ;
+                rdfs:subPropertyOf :compositeNarrower ;
+                owl:inverseOf :memberPropertyOf ;
+                rdf:type owl:AsymmetricProperty ,
+                         owl:IrreflexiveProperty ;
+                rdfs:label "member property" ;
+                <http://www.w3.org/2004/02/skos/core#definition> "defines the subject as a component property (i.e., member) of the object" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/memberPropertyOf
+:memberPropertyOf rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf :compositeBroader ;
+                  rdfs:label "member property of" ;
+                  <http://www.w3.org/2004/02/skos/core#definition> "defines the object as a component property (i.e., member) of the subject" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/missingOrUnrelatedMatch
+:missingOrUnrelatedMatch rdf:type owl:ObjectProperty ;
+                         rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#relatedMatch> ;
+                         rdfs:range [ rdf:type owl:Restriction ;
+                                      owl:onProperty :missingOrUnrelatedMatch ;
+                                      owl:hasValue :OwlNothing
+                                    ] .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/narrowABoxCategoryMatch
+:narrowABoxCategoryMatch rdf:type owl:ObjectProperty ;
+                         rdfs:subPropertyOf :narrowCategoryMatch ;
+                         rdfs:domain [ owl:intersectionOf ( :DataMapping
+                                                            [ rdf:type owl:Restriction ;
+                                                              owl:onProperty :narrowTBoxCategoryMatch ;
+                                                              owl:someValuesFrom owl:Thing
+                                                            ]
+                                                          ) ;
+                                       rdf:type owl:Class
+                                     ] ;
+                         rdfs:label "has narrow a-box category match" ;
+                         <http://www.w3.org/2004/02/skos/core#altLabel> "has a-box sub-category match" ;
+                         <http://www.w3.org/2004/02/skos/core#definition> "used to state a mapping link where the subject maps to a narrower category via object-property link to an individual that represents the Hyperonym (i.e., the more specific thing in the A-Box of the mapped concept scheme)" ;
+                         <http://www.w3.org/2004/02/skos/core#scopeNote> "An ABox category match may apply either before or after a datum is to be individuated. In either case, the operation is implied to be idempotent." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/narrowCategoryMatch
+:narrowCategoryMatch rdf:type owl:ObjectProperty ;
+                     rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#narrowMatch> ;
+                     rdfs:label "has narrow category match" ;
+                     <http://www.w3.org/2004/02/skos/core#definition> "narrowCategoryMatch is used to state a hyperonymic, categorical mapping link between two conceptual resources in different concept schemes, where the subject is the (more general) hyperonym and the object is the (more specific) hyponym" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/narrowTBoxCategoryMatch
+:narrowTBoxCategoryMatch rdf:type owl:ObjectProperty ;
+                         rdfs:subPropertyOf :narrowCategoryMatch ;
+                         rdfs:domain [ owl:intersectionOf ( :DataMapping
+                                                            [ rdf:type owl:Restriction ;
+                                                              owl:onProperty :exactTBoxMatch ;
+                                                              owl:someValuesFrom owl:Thing
+                                                            ]
+                                                          ) ;
+                                       rdf:type owl:Class
+                                     ] ;
+                         rdfs:label "has narrow t-box match" ;
+                         <http://www.w3.org/2004/02/skos/core#altLabel> "has t-box sub-category match" ;
+                         <http://www.w3.org/2004/02/skos/core#definition> "used to define a hyperonymic, categorical relationship between concepts in different concept schemes, specifically modelling the subject as being the superclass in an owl:subclassOf relationship with the object" ;
+                         <http://www.w3.org/2004/02/skos/core#scopeNote> "A TBox category must be applied before a datum can be individuated, since it implies the existence of an owl:Class not originally present in an OntologicalScheme. The implication here is that the operation resulting from this axiom is idempotent." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/narrowerMapping
+:narrowerMapping rdf:type owl:ObjectProperty ;
+                 rdfs:subPropertyOf :relatedMapping ;
+                 rdfs:label "has narrower mapping" ;
+                 <http://www.w3.org/2004/02/skos/core#definition> "Relates a mapping to a mapping that is more specific" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/ontologicalScheme
+:ontologicalScheme rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#inScheme> ;
+                   rdfs:range :OntologicalScheme .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/relatedMapping
+:relatedMapping rdf:type owl:ObjectProperty ;
+                rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#related> ;
+                rdfs:domain :DataMapping ;
+                rdfs:comment "These concept mapping relations mirror mapping relations, and the data model defined below is similar. A distinct vocabulary is provided for mapping relations between mappings, to provide a convenient way to differentiate links within a mapping scheme." ;
+                rdfs:label "has related mapping" ;
+                <http://www.w3.org/2004/02/skos/core#definition> "used to describe a relationships between two potential mappings" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/representationOf
+:representationOf rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#relatedMatch> ;
+                  owl:inverseOf :representedAs .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/representationScheme
+:representationScheme rdf:type owl:ObjectProperty ;
+                      rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#inScheme> ;
+                      rdfs:range :RepresentationScheme .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/representedAs
+:representedAs rdf:type owl:ObjectProperty ;
+               rdfs:subPropertyOf <http://www.w3.org/2004/02/skos/core#relatedMatch> .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/weightedBroader
+:weightedBroader rdf:type owl:ObjectProperty ;
+                 rdfs:subPropertyOf :broaderMapping ;
+                 owl:inverseOf :weightedNarrower ;
+                 rdfs:label "has weighted broader" ;
+                 <http://www.w3.org/2004/02/skos/core#definition> "used to indicate that the subject has a lower weighting (and thereby is a broader match), compared to the object - this property is the inverse of weightedNarrower" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/weightedNarrower
+:weightedNarrower rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf :narrowerMapping ;
+                  rdfs:label "has weighted narrower" ;
+                  <http://www.w3.org/2004/02/skos/core#definition> "used to indicate that the object has a higher weighting (and thereby is a narrower match), compared to the subject" .
+
+
+#################################################################
+#    Data properties
+#################################################################
+
+###  http://www.nebularis.org/hyperthunk/DataRep/conceptId
+:conceptId rdf:type owl:DatatypeProperty ;
+           rdfs:subPropertyOf :identifier ,
+                              <http://www.w3.org/2004/02/skos/core#notation> ;
+           rdf:type owl:FunctionalProperty ;
+           rdfs:domain <http://www.w3.org/2004/02/skos/core#Concept> ;
+           rdfs:range xsd:string .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/conceptName
+:conceptName rdf:type owl:DatatypeProperty ;
+             rdfs:subPropertyOf :name .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/data
+:data rdf:type owl:DatatypeProperty ;
+      rdfs:subPropertyOf owl:topDataProperty ;
+      rdfs:range xsd:string .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/dataInline
+:dataInline rdf:type owl:DatatypeProperty ;
+            rdfs:subPropertyOf :data .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/dataRef
+:dataRef rdf:type owl:DatatypeProperty ;
+         rdfs:subPropertyOf :data .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/externalPropertyValue
+:externalPropertyValue rdf:type owl:DatatypeProperty ;
+                       rdfs:subPropertyOf owl:topDataProperty .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/identifier
+:identifier rdf:type owl:DatatypeProperty ;
+            rdfs:subPropertyOf owl:topDataProperty .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/iri
+:iri rdf:type owl:DatatypeProperty ;
+     rdfs:subPropertyOf :conceptId ;
+     rdf:type owl:FunctionalProperty ;
+     rdfs:domain :OwlAxiom .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/itemsConstrained
+:itemsConstrained rdf:type owl:DatatypeProperty ;
+                  rdfs:subPropertyOf owl:topDataProperty ;
+                  rdfs:range xsd:boolean .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/name
+:name rdf:type owl:DatatypeProperty ;
+      rdfs:subPropertyOf owl:topDataProperty ;
+      rdfs:range xsd:string ;
+      <http://www.w3.org/2004/02/skos/core#definition> "composes" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/orderedItems
+:orderedItems rdf:type owl:DatatypeProperty ;
+              rdfs:subPropertyOf :itemsConstrained .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/path
+:path rdf:type owl:DatatypeProperty ;
+      rdfs:subPropertyOf :identifier .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/reference
+:reference rdf:type owl:DatatypeProperty ;
+           rdfs:subPropertyOf :identifier .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/uniqueItems
+:uniqueItems rdf:type owl:DatatypeProperty ;
+             rdfs:subPropertyOf :itemsConstrained .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/weighting
+:weighting rdf:type owl:DatatypeProperty ;
+           rdfs:subPropertyOf owl:topDataProperty ;
+           rdfs:range xsd:integer ;
+           <http://www.w3.org/2004/02/skos/core#definition> "confidence score out of 100" .
+
+
+#################################################################
+#    Classes
+#################################################################
+
+###  http://www.nebularis.org/hyperthunk/DataRep#Datum
+:Datum rdf:type owl:Class ;
+       owl:equivalentClass [ rdf:type owl:Restriction ;
+                             owl:onProperty :deferredMapping ;
+                             owl:someValuesFrom :DataMapping
+                           ] ;
+       rdfs:subClassOf :DataMapping ;
+       rdfs:comment """The need to individuate a datum (described by a TaxonomyScheme, provided via a RepresentationScheme) in an OntologicalScheme is perhaps implied, however when the individuation requires complex mapping steps then specificity becomes important. 
+
+In the skos:example attached to compositeNarrowerMapping provides an example of this.""" ;
+       rdfs:label "datum mapping" ;
+       rdfs:seeAlso :compositeNarrowerMapping ;
+       <http://www.w3.org/2004/02/skos/core#definition> "defines a mapping that explicitly states a datum must be individuated in a target OntologicalScheme" ;
+       <http://www.w3.org/2004/02/skos/core#scopeNote> "Due to the equivalence class for Datum, an individual that is bound to an extant owl:Thing via a skos:mappingRelation MUST hold a reference back to itself via the deferredMapping object property." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/AnonymousEntity
+:AnonymousEntity rdf:type owl:Class ;
+                 owl:equivalentClass :CollectionElement ;
+                 rdfs:subClassOf :Entity ,
+                                 [ rdf:type owl:Restriction ;
+                                   owl:onProperty :identifier ;
+                                   owl:hasValue ""
+                                 ] .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Array
+:Array rdf:type owl:Class ;
+       rdfs:subClassOf :UnorderedCollection .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Association
+:Association rdf:type owl:Class ;
+             rdfs:subClassOf :Representation ;
+             owl:disjointWith :Entity .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Attribute
+:Attribute rdf:type owl:Class ;
+           owl:equivalentClass [ owl:intersectionOf ( [ rdf:type owl:Class ;
+                                                        owl:unionOf ( [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty [ owl:inverseOf :memberProperty
+                                                                                       ] ;
+                                                                        owl:someValuesFrom :Association
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty [ owl:inverseOf :memberProperty
+                                                                                       ] ;
+                                                                        owl:someValuesFrom :Entity
+                                                                      ]
+                                                                    )
+                                                      ]
+                                                      [ rdf:type owl:Restriction ;
+                                                        owl:onProperty :memberProperty ;
+                                                        owl:qualifiedCardinality "0"^^xsd:nonNegativeInteger ;
+                                                        owl:onClass :Representation
+                                                      ]
+                                                    ) ;
+                                 rdf:type owl:Class
+                               ] ;
+           rdfs:subClassOf :Representation ;
+           rdfs:label "attribute (representation)" ;
+           <http://www.w3.org/2004/02/skos/core#definition> "is used to denote an attribute in a representation scheme" ;
+           <http://www.w3.org/2004/02/skos/core#note> """Since we cannot easily capture data type constraints as data in OWL, members of this class will usually be \"shadowed\" by an owl:DataTypeProperty that is generated by a mapping process, against which the range (of possible data types) will be captured.
+
+The individual Attribute will then be marked as the same individual as the generated owl:DataTypeProperty using the owl:sameAs axiom.""" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Chaining
+:Chaining rdf:type owl:Class ;
+          rdfs:subClassOf :Composition ;
+          owl:disjointWith :Collection .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Collection
+:Collection rdf:type owl:Class ;
+            rdfs:subClassOf :Composition .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/CollectionElement
+:CollectionElement rdf:type owl:Class ;
+                   rdfs:subClassOf :Membership .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Composition
+:Composition rdf:type owl:Class ;
+             rdfs:subClassOf :Association .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/DataConcept
+:DataConcept rdf:type owl:Class ;
+             rdfs:subClassOf [ owl:intersectionOf ( <http://www.w3.org/2004/02/skos/core#Concept>
+                                                    [ rdf:type owl:Restriction ;
+                                                      owl:onProperty :conceptScheme ;
+                                                      owl:someValuesFrom :TaxonomyScheme
+                                                    ]
+                                                  ) ;
+                               rdf:type owl:Class
+                             ] ;
+             owl:disjointWith :Representation ;
+             rdfs:label "data concept" ;
+             <http://www.w3.org/2004/02/skos/core#definition> "An abstract description of a concept, representing a concept that has been mapped to a representation and ontology scheme." ;
+             <http://www.w3.org/2004/02/skos/core#scopeNote> "Data concepts are derived from a representation scheme and mapped to an ontological scheme." .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/DataMapping
+:DataMapping rdf:type owl:Class ;
+             rdfs:subClassOf [ owl:intersectionOf ( <http://www.w3.org/2004/02/skos/core#Concept>
+                                                    [ rdf:type owl:Class ;
+                                                      owl:unionOf ( [ rdf:type owl:Restriction ;
+                                                                      owl:onProperty <http://www.w3.org/2004/02/skos/core#mappingRelation> ;
+                                                                      owl:someValuesFrom :OwlAxiom
+                                                                    ]
+                                                                    [ rdf:type owl:Restriction ;
+                                                                      owl:onProperty <http://www.w3.org/2004/02/skos/core#mappingRelation> ;
+                                                                      owl:someValuesFrom owl:Thing
+                                                                    ]
+                                                                  )
+                                                    ]
+                                                    [ rdf:type owl:Restriction ;
+                                                      owl:onProperty :mappingScheme ;
+                                                      owl:someValuesFrom :MappingScheme
+                                                    ]
+                                                  ) ;
+                               rdf:type owl:Class
+                             ] ;
+             rdfs:comment "Usually a DataMapping will provide some skos:note annotation explaining the logic behind the mapping. Optionally, mapping properties may be annotated to provide additional logical explanations." ;
+             rdfs:label "data mapping" ;
+             <http://www.w3.org/2004/02/skos/core#definition> "is used to capture a mapping between concepts from a representation scheme to an ontological scheme" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Digraph
+:Digraph rdf:type owl:Class ;
+         rdfs:subClassOf <http://www.w3.org/2004/02/skos/core#Concept> ,
+                         [ rdf:type owl:Restriction ;
+                           owl:onProperty :digraphMatch ;
+                           owl:someValuesFrom :OwlAxiom
+                         ] .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Entity
+:Entity rdf:type owl:Class ;
+        rdfs:subClassOf :Representation ;
+        rdfs:label "entity (representation)" ;
+        <http://www.w3.org/2004/02/skos/core#definition> "is used to denote an entity in a representation scheme" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/MappingScheme
+:MappingScheme rdf:type owl:Class ;
+               rdfs:subClassOf <http://www.w3.org/2004/02/skos/core#ConceptScheme> ;
+               rdfs:label "mapping scheme" ;
+               <http://www.w3.org/2004/02/skos/core#definition> "a scheme that captures mappings between concepts, from a RepresentationScheme to an OntologicalScheme" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Membership
+:Membership rdf:type owl:Class ;
+            rdfs:subClassOf :Representation .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OntologicalScheme
+:OntologicalScheme rdf:type owl:Class ;
+                   rdfs:subClassOf <http://www.w3.org/2004/02/skos/core#ConceptScheme> ;
+                   rdfs:label "ontological scheme" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OrderedCollection
+:OrderedCollection rdf:type owl:Class ;
+                   owl:equivalentClass [ rdf:type owl:Restriction ;
+                                         owl:onProperty :orderedItems ;
+                                         owl:hasValue "true"^^xsd:boolean
+                                       ] ;
+                   rdfs:subClassOf :Collection .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OwlAxiom
+:OwlAxiom rdf:type owl:Class ;
+          owl:equivalentClass [ owl:intersectionOf ( <http://www.w3.org/2004/02/skos/core#Concept>
+                                                     [ rdf:type owl:Restriction ;
+                                                       owl:onProperty <http://www.w3.org/2004/02/skos/core#inScheme> ;
+                                                       owl:someValuesFrom :OntologicalScheme
+                                                     ]
+                                                   ) ;
+                                rdf:type owl:Class
+                              ] ;
+          rdfs:comment """For processing environments where attaching skos:relatedMapping to owl:Thing is not possible, each axiom in the OntologicalScheme will be connected to an assertion of this type via the owl:sameAs mechanism.
+
+Can also be used to instantiate individual members of this class that represent owl:Nothing (which is a problematic assertion in most processing environments).
+
+It is recommended that each member of this class also uses the rdfs:seeAlso annotation to record the owl:Thing is points to, for environments that do not properly support the owl:sameAs axiom.""" ;
+          rdfs:label "owl axiom" ;
+          <http://www.w3.org/2004/02/skos/core#definition> "used to denote an axiom in an OWL ontology" ;
+          <http://www.w3.org/2004/02/skos/core#scopeNote> """The OwlAxiom members of an OntologicalScheme are not interrelated using skos notation, since that information is already present in the ontology itself.
+
+Rather, the behaviour when mapping data into (and out of) an OntologicalScheme is captured by each DataMapping that where ?mappping skos:inScheme :MappingScheme""" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OwlClass
+:OwlClass rdf:type owl:Class ;
+          rdfs:subClassOf :OwlAxiom .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OwlDataProperty
+:OwlDataProperty rdf:type owl:Class ;
+                 rdfs:subClassOf :OwlAxiom .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OwlObjectProperty
+:OwlObjectProperty rdf:type owl:Class ;
+                   rdfs:subClassOf :OwlAxiom .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Referencing
+:Referencing rdf:type owl:Class ;
+             rdfs:subClassOf :Association .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Representation
+:Representation rdf:type owl:Class ;
+                rdfs:subClassOf <http://www.w3.org/2004/02/skos/core#Concept> ,
+                                [ owl:intersectionOf ( [ owl:intersectionOf ( [ rdf:type owl:Restriction ;
+                                                                                owl:onProperty :identifier ;
+                                                                                owl:someValuesFrom xsd:string
+                                                                              ]
+                                                                              [ rdf:type owl:Restriction ;
+                                                                                owl:onProperty :path ;
+                                                                                owl:someValuesFrom xsd:string
+                                                                              ]
+                                                                            ) ;
+                                                         rdf:type owl:Class
+                                                       ]
+                                                       [ rdf:type owl:Restriction ;
+                                                         owl:onProperty <http://www.w3.org/2004/02/skos/core#inScheme> ;
+                                                         owl:someValuesFrom :RepresentationScheme
+                                                       ]
+                                                     ) ;
+                                  rdf:type owl:Class
+                                ] ;
+                rdfs:label "representation" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/RepresentationScheme
+:RepresentationScheme rdf:type owl:Class ;
+                      rdfs:subClassOf [ owl:intersectionOf ( <http://www.w3.org/2004/02/skos/core#ConceptScheme>
+                                                             [ rdf:type owl:Restriction ;
+                                                               owl:onProperty :format ;
+                                                               owl:someValuesFrom :SerializationFormat
+                                                             ]
+                                                           ) ;
+                                        rdf:type owl:Class
+                                      ] ;
+                      rdfs:label "representation scheme" ;
+                      <http://www.w3.org/2004/02/skos/core#definition> "a scheme that maps concepts to their representation" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/SerializationFormat
+:SerializationFormat rdf:type owl:Class .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/SetListing
+:SetListing rdf:type owl:Class ;
+            owl:equivalentClass [ rdf:type owl:Restriction ;
+                                  owl:onProperty :uniqueItems ;
+                                  owl:hasValue "true"^^xsd:boolean
+                                ] ;
+            rdfs:subClassOf :Collection .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/TaxonomyScheme
+:TaxonomyScheme rdf:type owl:Class ;
+                rdfs:subClassOf <http://www.w3.org/2004/02/skos/core#ConceptScheme> .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/UnorderedCollection
+:UnorderedCollection rdf:type owl:Class ;
+                     owl:equivalentClass [ rdf:type owl:Restriction ;
+                                           owl:onProperty :orderedItems ;
+                                           owl:hasValue "false"^^xsd:boolean
+                                         ] ;
+                     rdfs:subClassOf :Collection .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/WeightedMatch
+:WeightedMatch rdf:type owl:Class ;
+               rdfs:subClassOf :DataMapping ,
+                               [ rdf:type owl:Restriction ;
+                                 owl:onProperty :weighting ;
+                                 owl:someValuesFrom xsd:integer
+                               ] ;
+               rdfs:label "weighted match" ;
+               <http://www.w3.org/2004/02/skos/core#definition> "is used to score a potential match (between concept taxa and ontological facts)" ;
+               <http://www.w3.org/2004/02/skos/core#scopeNote> "each member of this class may carry skos:note and rdfs:seeAlso that explain the rules used to arrive at the match" .
+
+
+#################################################################
+#    Individuals
+#################################################################
+
+###  http://www.nebularis.org/hyperthunk/DataRep/Bottom
+:Bottom rdf:type owl:NamedIndividual ,
+                 :OwlAxiom ;
+        owl:sameAs :OwlNothing .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OwlNothing
+
+###  http://www.nebularis.org/hyperthunk/DataRep/JSON
+:JSON rdf:type owl:NamedIndividual ,
+               :SerializationFormat ;
+      rdfs:isDefinedBy "https://datatracker.ietf.org/doc/html/rfc7159.html" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/OwlNothing
+:OwlNothing rdf:type owl:NamedIndividual ,
+                     :OwlAxiom .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/XML
+:XML rdf:type owl:NamedIndividual ,
+              :SerializationFormat ;
+     rdfs:isDefinedBy "https://www.w3.org/TR/xml/" .
+
+
+###  http://www.nebularis.org/hyperthunk/DataRep/YAML
+:YAML rdf:type owl:NamedIndividual ,
+               :SerializationFormat ;
+      rdfs:isDefinedBy "https://yaml.org/spec/" .
+
+
+#################################################################
+#    General axioms
+#################################################################
+
+[ rdf:type owl:AllDisjointClasses ;
+  owl:members ( :OrderedCollection
+                :SetListing
+                :UnorderedCollection
+              )
+] .
+
+
+[ rdf:type owl:AllDisjointProperties ;
+  owl:members ( :broaderMapping
+                :hypothesisMapping
+                :narrowerMapping
+              )
+] .
+
+
+###  Generated by the OWL API (version 4.5.29.2024-05-13T12:11:03Z) https://github.com/owlcs/owlapi

@@ -49,3 +49,9 @@ build/
 .idea/misc.xml
 .idea/scala_compiler.xml
 .idea/scala_settings.xml
+.idea/vcs.xml
+.idea/sbt.xml
+.idea/codeStyles/Project.xml
+src/main/scala/JsonLoader.scala
+src/main/scala/JsonLoader.scala
+.idea/dictionaries/project.xml

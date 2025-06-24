@@ -1,0 +1,184 @@
+package org.nebularis.krom
+
+import com.fasterxml.jackson.core.*
+import com.fasterxml.jackson.core.JsonToken.*
+import com.typesafe.scalalogging.LazyLogging
+
+import java.io.InputStream
+import scala.annotation.tailrec
+import scala.language.postfixOps
+
+type JacksonParser = com.fasterxml.jackson.core.JsonParser
+
+class JsonLoader(private val io: InputStream,
+                 private val factory: JsonFactory) extends Logger("JsonLoader") {
+    def load(ontology: Ontology): Unit = {
+        val parser = factory.createParser(io)
+        parse(parser, JBOFState(parser, ontology))
+    }
+
+    @tailrec
+    private def parse(parser: JacksonParser, state: ParseState): Unit = {
+        val token = parser.nextToken()
+        if token == null then ()
+        else
+            val id = parser.getCurrentName
+            debug(("parse", token, id))
+            parse(parser, state.nextState(id, token))
+    }
+}
+
+object JsonLoader {
+    private val factory: JsonFactory = new JsonFactory()
+
+    def load(io: InputStream, ontology: Ontology): Unit = {
+        new JsonLoader(io, factory).load(ontology)
+    }
+}
+
+/** Base exception for throwing parsing failures as RuntimeExceptions.
+ */
+class JsonParserException(msg: String) extends RuntimeException(msg)
+
+private sealed trait Logger(id: String) extends LazyLogging {
+    def debug(op: String, token: JsonToken): Unit = {
+        logger.whenDebugEnabled {
+            logger.debug("Op: " + op + ", Token: " + token + ", id: " + id)
+        }
+    }
+
+    def debug(msg: Any): Unit = {
+        logger.whenDebugEnabled {
+            logger.debug(msg.toString)
+        }
+    }
+}
+
+trait ParseState(broader: ParseState = null, parser: JacksonParser, ontology: Ontology) extends Logger {
+    def nextState(id: String, token: JsonToken): ParseState = this
+
+    def throwJPEx[T](scope: T, msg: String): T = {
+        val ex = new JsonParserException(msg)
+        logger.error(msg, ex)
+        throw ex
+    }
+}
+case class JBOFState(parser: JacksonParser, ontology: Ontology)
+        extends ParseState(parser = parser, ontology = ontology), Logger("BOF") {
+    override def nextState(id: String, token: JsonToken): ParseState = {
+        token match {
+            case START_OBJECT => JObjState(id, this, parser, ontology)
+            case START_ARRAY => JListState(id, this, parser, ontology)
+            case _ => throwJPEx(this, "ummmm: " + id + "/" + token)
+        }
+    }
+}
+case class JObjState(id: String, outer: ParseState, parser: JacksonParser, ontology: Ontology)
+        extends ParseState(outer, parser, ontology), Logger(id) {
+    override def nextState(id: String, token: JsonToken): ParseState = {
+        token match {
+            case END_OBJECT => outer
+            case FIELD_NAME => {
+                debug((id, token))
+                JPropState(this, parser, ontology)
+            }
+            case _ => throwJPEx(this, "ummmm: " + id + "/" + token)
+        }
+    }
+}
+case class JListState(listID: String, outer: JBOFState | JPropState, parser: JacksonParser, ontology: Ontology)
+        extends ParseState(outer, parser, ontology), Logger("ARRAY") {
+    override def nextState(id: String, token: JsonToken): ParseState = {
+        (token, outer) match {
+            case (START_OBJECT, _: JBOFState) => JObjState(id, this, parser, ontology)
+            case (START_OBJECT, _: JPropState) => {
+                debug((listID, token))
+                val repID = ontology.addRepEntityAnon(listID)
+                JObjState(repID, this, parser, ontology)
+            }  // 'id' is the property this is assigned to
+            case (END_OBJECT, _) => this
+            case (END_ARRAY, _) => outer
+            // TODO: if we see a scalar value then we should keep a list of potential type bindings
+            case _ => throwJPEx(this, "ummmm: " + id + "/" + token)
+        }
+    }
+}
+case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontology)
+        extends ParseState(outer, parser, ontology), Logger(outer.id) {
+
+    def id: String = outer.id
+
+    override def nextState(id: String, token: JsonToken): ParseState = {
+
+        def addRepProp(sid: String)(ent: String => Unit): Unit = {
+            ent(sid)
+            if outer.id != null then ontology.addMemberProperty(outer.id, sid)
+        }
+
+        def addAttr[T](att: T): ParseState = {
+            val underlying = Scalar(att)
+            debug(("write value", id, underlying.asType[T], underlying.xsdType, token))
+            ontology.addRepresentationAttribute(outer.id, id, underlying)
+            this
+        }
+
+        token match {
+            case START_OBJECT =>
+                debug((id, token))
+                addRepProp(id) { ontology.addRepresentationEntity.apply }
+                JObjState(id, this, parser, ontology)
+            case START_ARRAY =>
+                debug((id, "array", token))
+                addRepProp(id) { ontology.addRepresentationArray.apply }
+                JListState(id, this, parser, ontology)
+            case END_OBJECT => outer.nextState(id, token)
+            case FIELD_NAME =>
+                debug((id, token))
+                JPropState(outer, parser, ontology)
+            case VALUE_STRING => addAttr[String](parser.getValueAsString)
+            case VALUE_NUMBER_INT => addAttr[Int](parser.getValueAsInt)
+            case VALUE_NUMBER_FLOAT => addAttr[Double](parser.getValueAsDouble)
+            case VALUE_FALSE => addAttr[Boolean](parser.getValueAsBoolean)
+            case VALUE_TRUE => addAttr[Boolean](parser.getValueAsBoolean)
+            case VALUE_NULL =>
+                val underlying = JsonNull
+                debug(("write value", id, underlying, underlying.xsdType, token))
+                ontology.addRepresentationAttribute(outer.id, id, underlying)
+                this
+            case VALUE_EMBEDDED_OBJECT =>
+                debug("VALUE_EMBEDDED_OBJECT - CURRENTLY UNSUPPORTED")
+                throwJPEx(this, "VALUE_EMBEDDED_OBJECT @" + id)
+            case NOT_AVAILABLE =>
+                debug("NON_BLOCKING I/O OP - CURRENTLY UNSUPPORTED")
+                throwJPEx(this, "Non blocking I/O @" + id)
+            case _ =>
+                throwJPEx(this, "Unsupported Operation " + token + "@" + id)
+        }
+    }
+}
+
+trait Typeable[A]:
+    extension (a: A) def asType[T]: T
+    extension (b: A) def asString: String
+    extension (c: A) def xsdType: DataType
+
+class Scalar(val value: Any) {
+    override def toString: String = "JsonValue(" + value.toString + ")"
+}
+object Scalar {
+    def wrap(any: Any): Scalar = Scalar(any)
+}
+private object JsonNull extends Scalar(Some(null))
+
+given Typeable[Scalar] with
+    extension (w: Scalar) def asType[T]: T = w.value.asInstanceOf[T]
+    extension (w: Scalar) def asString: String = w.value.toString
+    extension (w: Scalar) def xsdType: DataType = {
+        //TODO: this is SO gross, refactor to use higher order types...
+        w.value match {
+            case _: Int => XsdInt
+            case _: Float => XsdFloat
+            case _: Boolean => XsdBool
+            case _ => if w.value == null then XsdNull else XsdString
+        }
+    }

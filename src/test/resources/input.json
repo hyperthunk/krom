@@ -1,0 +1,24 @@
+{
+  "contract": {
+    "signatories": {
+      "issuer": { 
+         "issuerID": "Bob The Builder Enterprises, LLP"
+      },
+      "contractingParties": [
+        {
+            "FirstName": "Postman",
+            "LastName": "Pat"
+        },
+        {
+          	"FirstName": "Fireman",
+          	"LastName": "Sam"
+        }
+      ]
+    },
+    "conditions": {
+      "exclCosts": "costs excluded: [list of costs]",
+      "coolingOffPeriodDays": 21,
+      "maximumNonNegotiatedPayment": 21000.00
+    }
+  }
+}
