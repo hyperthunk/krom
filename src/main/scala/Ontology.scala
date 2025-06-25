@@ -175,13 +175,6 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 }
 
 object Ontology {
-    /*def openOntology(path: String): Ontology = {
-        var mgr = OWLManager.createOWLOntologyManager();
-        val ont = new Ontology(mgr.loadOntologyFromOntologyDocument(new File(path)), mgr)
-        ont.init()
-        ont
-    }*/
-
     def openOntology(config: KromConfig): Ontology = {
         // openOntology(IRI.create(config.morkURL))
         val mgr = OWLManager.createOWLOntologyManager()
@@ -190,14 +183,4 @@ object Ontology {
         ont.init()
         ont
     }
-
-    /*def openOntology(morkIRI: IRI): Ontology = openOntology(IRI.create(MAPPING_ONTOLOGY_BASE_IRI), morkIRI)
-
-    def openOntology(iri: IRI, morkIRI: IRI): Ontology = {
-        var mgr = OWLManager.createOWLOntologyManager()
-        val ontology = mgr.createOntology(iri)
-        val ont = new Ontology(morkIRI, ontology, mgr)
-        ont.init()
-        ont
-    }*/
 }

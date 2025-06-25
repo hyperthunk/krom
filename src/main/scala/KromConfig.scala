@@ -1,13 +1,13 @@
 package org.nebularis.krom
 
+import OntologyFormat.{OwlXml, Turtle}
+
 import com.typesafe.config.{Config, ConfigFactory}
-import org.nebularis.krom.OntologyFormat.{OwlXml, Turtle}
 import org.semanticweb.owlapi.formats.{OWLXMLDocumentFormat, TurtleDocumentFormat}
 import org.semanticweb.owlapi.model.{IRI, OWLDocumentFormat}
 
-import java.io.{File, FileInputStream, FileOutputStream, InputStream, OutputStream}
+import java.io.*
 import java.net.{URI, URL, URLConnection}
-import scala.collection.mutable
 
 /** Base exception for throwing parsing failures as RuntimeExceptions.
  */
@@ -18,8 +18,6 @@ class ConfigurationException(msg: String, cause: Throwable) extends RuntimeExcep
 enum OntologyFormat:
     case Turtle extends OntologyFormat
     case OwlXml extends OntologyFormat
-
-// enum Configuration(key:String, value: String):
 
 private case class IOMode(filePath: Option[String])
 
@@ -54,32 +52,15 @@ class KromConfig private(val morkURL: URL,
 
     def prepareActualOutput(documentIRI: IRI): OutputStream = {
         // TODO: leverage SystemOutDocumentTarget in owlapi
-        // files opened with FileOutputStream
         if ("file" == documentIRI.getScheme) {
             val file = new File(documentIRI.toURI)
-            // Ensure that the necessary directories exist.
             file.getParentFile.mkdirs
             FileOutputStream(file)
         } else {
-            // URLs
             val url: URL = documentIRI.toURI.toURL
             val conn: URLConnection = url.openConnection
             conn.getOutputStream
         }
-    }
-
-
-    private def inputStream: InputStream = input match {
-        case IOMode(None) => System.in
-        case IOMode(Some(path)) => FileInputStream(path)
-    }
-
-    private def outputStream: OutputStream = input match {
-        case IOMode(None) => System.out
-        case IOMode(Some(path)) =>
-            val file = File(path)
-            file.delete()
-            FileOutputStream(file)
     }
 }
 
