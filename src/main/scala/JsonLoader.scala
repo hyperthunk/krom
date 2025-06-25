@@ -215,6 +215,7 @@ given Typeable[Scalar] with
         w.value match {
             case _: Int => XsdInt
             case _: Float => XsdFloat
+            case _: Double => XsdFloat
             case _: Boolean => XsdBool
             case _ => if w.value == null then XsdNull else XsdString
         }
