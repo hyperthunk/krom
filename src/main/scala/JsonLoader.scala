@@ -32,8 +32,14 @@ class JsonLoader(private val io: InputStream,
 object JsonLoader {
     private val factory: JsonFactory = new JsonFactory()
 
-    def load(io: InputStream, ontology: Ontology): Unit = {
+    def load(config: KromConfig): Ontology = {
+        val ontology = Ontology.openOntology(config)
+        config.withInputStream(load.apply(_, ontology))
+    }
+
+    private def load(io: InputStream, ontology: Ontology): Ontology = {
         new JsonLoader(io, factory).load(ontology)
+        ontology
     }
 }
 

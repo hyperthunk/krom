@@ -1,28 +1,28 @@
 package org.nebularis.krom
 
-import Ontology.{MAPPING_ONTOLOGY_BASE_IRI, MORK_ONTOLOGY_BASE_IRI, SKOS_IRI}
-
 import com.typesafe.scalalogging.LazyLogging
 import org.nebularis.krom.DataType
 import org.semanticweb.owlapi.apibinding.OWLManager
-import org.semanticweb.owlapi.formats.TurtleDocumentFormat
 import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
 import org.semanticweb.owlapi.util.{DefaultPrefixManager, SimpleIRIMapper}
 
-import java.io.File
+import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicLong
 import scala.collection.mutable
 import scala.language.postfixOps;
 
-class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
+class Ontology private (val config: KromConfig, val ontology: OWLOntology,
                         val manager: OWLOntologyManager) extends LazyLogging {
 
     private val counter = new AtomicLong(Integer.MAX_VALUE)
     private val factory: OWLDataFactory = manager.getOWLDataFactory
-    private val morkBaseIRI = IRI.create(MORK_ONTOLOGY_BASE_IRI)
-    private val morkPrefixManager = new DefaultPrefixManager(null, null, MORK_ONTOLOGY_BASE_IRI + "#")
-    private val mappingPrefixManager = new DefaultPrefixManager(null, null, MAPPING_ONTOLOGY_BASE_IRI + "#")
+    private val morkIRI = IRI.create(config.morkURL)
+    private val morkBaseIRI = IRI.create(config.morkBaseIRI)
+    private val kromBaseIRI = IRI.create(config.kromBaseIRI)
+    private val skosBaseIRI = IRI.create(config.skosBaseIRI)
+    private val morkPrefixManager = new DefaultPrefixManager(null, null, config.morkBaseIRI + "#")
+    private val mappingPrefixManager = new DefaultPrefixManager(null, null, config.kromBaseIRI + "#")
     private val anonymousEntities: mutable.Set[String] = mutable.HashSet.empty
 
     private val morkAttribute: OWLClass = getMorkClass(":Attribute")
@@ -43,7 +43,7 @@ class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
         manager.getIRIMappers.add(iriMapper)
         manager.loadOntology(morkBaseIRI)
 
-        val skosImport = factory.getOWLImportsDeclaration(IRI.create(SKOS_IRI))
+        val skosImport = factory.getOWLImportsDeclaration(skosBaseIRI)
         manager.applyChange(new AddImport(ontology, skosImport))
 
         val morkImport = factory.getOWLImportsDeclaration(morkBaseIRI)
@@ -80,10 +80,10 @@ class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
     }
 
     def save(): Unit = {
-        // TODO: obviously this need to be re-worked properly
-        val tmpFile = "file:///Users/" + sys.env("USER") + "/work/Map.ttl"
-        File(tmpFile).delete()
-        ontology.saveOntology(TurtleDocumentFormat(), IRI.create(tmpFile))
+        config.withOutputStream { (ioS: OutputStream) =>
+            ontology.saveOntology(config.outputFormat, ioS)
+            this
+        }
     }
 
     def addMemberProperty(broader: String, narrower: String): Unit = {
@@ -175,11 +175,6 @@ class Ontology private (val morkIRI: IRI, val ontology: OWLOntology,
 }
 
 object Ontology {
-    // TODO: system/application properties and all that jazz
-    final def SKOS_IRI: String = "http://www.w3.org/2004/02/skos/core"
-    final def MORK_ONTOLOGY_BASE_IRI: String = "http://www.nebularis.org/ontologies/Mork"
-    final def MAPPING_ONTOLOGY_BASE_IRI: String = "http://www.nebularis.org/hyperthunk/Mapping"
-
     /*def openOntology(path: String): Ontology = {
         var mgr = OWLManager.createOWLOntologyManager();
         val ont = new Ontology(mgr.loadOntologyFromOntologyDocument(new File(path)), mgr)
@@ -187,7 +182,16 @@ object Ontology {
         ont
     }*/
 
-    def openOntology(morkIRI: IRI): Ontology = openOntology(IRI.create(MAPPING_ONTOLOGY_BASE_IRI), morkIRI)
+    def openOntology(config: KromConfig): Ontology = {
+        // openOntology(IRI.create(config.morkURL))
+        val mgr = OWLManager.createOWLOntologyManager()
+        val ontology = mgr.createOntology(IRI.create(config.kromBaseIRI))
+        val ont = new Ontology(config, ontology, mgr)
+        ont.init()
+        ont
+    }
+
+    /*def openOntology(morkIRI: IRI): Ontology = openOntology(IRI.create(MAPPING_ONTOLOGY_BASE_IRI), morkIRI)
 
     def openOntology(iri: IRI, morkIRI: IRI): Ontology = {
         var mgr = OWLManager.createOWLOntologyManager()
@@ -195,5 +199,5 @@ object Ontology {
         val ont = new Ontology(morkIRI, ontology, mgr)
         ont.init()
         ont
-    }
+    }*/
 }
