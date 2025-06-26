@@ -9,6 +9,7 @@ import org.semanticweb.owlapi.util.{DefaultPrefixManager, SimpleIRIMapper}
 
 import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicLong
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.language.postfixOps;
 
@@ -16,23 +17,47 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
                         val manager: OWLOntologyManager) extends LazyLogging {
 
     private val counter = new AtomicLong(Integer.MAX_VALUE)
-    private val factory: OWLDataFactory = manager.getOWLDataFactory
     private val morkIRI = IRI.create(config.morkURL)
     private val morkBaseIRI = IRI.create(config.morkBaseIRI)
-    private val kromBaseIRI = IRI.create(config.kromBaseIRI)
     private val skosBaseIRI = IRI.create(config.skosBaseIRI)
-    private val morkPrefixManager = new DefaultPrefixManager(null, null, config.morkBaseIRI + "#")
-    private val mappingPrefixManager = new DefaultPrefixManager(null, null, config.kromBaseIRI + "#")
     private val anonymousEntities: mutable.Set[String] = mutable.HashSet.empty
 
-    private val morkAttribute: OWLClass = getMorkClass(":Attribute")
-    private val morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
-    private val morkAnonEntity: OWLClass = getMorkClass(":AnonymousEntity")
-    private val morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
-    private val morkEntity: OWLClass = getMorkClass(":Entity")
-    private val morkEntityDef: OWLClassExpression = morkEntity.getNNF
-    private val morkArray: OWLClass = getMorkClass(":Array")
-    private val morkArrayDef: OWLClassExpression = morkArray.getNNF
+    private lazy val factory: OWLDataFactory = manager.getOWLDataFactory
+    private lazy val morkPrefixManager = new DefaultPrefixManager(null, null, config.morkBaseIRI + "#")
+    private lazy val mappingPrefixManager = new DefaultPrefixManager(null, null, config.kromBaseIRI + "#")
+    private lazy val morkRepScheme: OWLClass = getMorkClass(":RepresentationScheme")
+    private lazy val morkRepSchemeDef: OWLClassExpression = morkRepScheme.getNNF
+    private lazy val morkDCScheme: OWLClass = getMorkClass(":TaxonomyScheme")
+    private lazy val morkDCSchemeDef: OWLClassExpression = morkDCScheme.getNNF
+    private lazy val morkAttribute: OWLClass = getMorkClass(":Attribute")
+    private lazy val morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
+    private lazy val morkAnonEntity: OWLClass = getMorkClass(":AnonymousEntity")
+    private lazy val morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
+    private lazy val morkEntity: OWLClass = getMorkClass(":Entity")
+    private lazy val morkEntityDef: OWLClassExpression = morkEntity.getNNF
+    private lazy val morkArray: OWLClass = getMorkClass(":Array")
+    private lazy val morkArrayDef: OWLClassExpression = morkArray.getNNF
+
+    private lazy val representationSchemeID: String = scheme("Representation")
+    private lazy val taxaSchemeID: String = scheme("Taxa")
+    private def scheme(suffix: String): String = config.kromBaseIRI.split("/").last + "_" + suffix
+
+    private lazy val repScheme: OWLNamedIndividual = getPrefixedNamedIndividual(representationSchemeID)
+    private lazy val conceptScheme: OWLNamedIndividual = getPrefixedNamedIndividual(taxaSchemeID)
+    private lazy val bottom: OWLNamedIndividual = factory.getOWLNamedIndividual(":Bottom", morkPrefixManager)
+
+    protected enum ConceptScheme(val node: OWLNamedIndividual, val prop: String):
+
+        def assertInScheme(individual: OWLNamedIndividual): Unit = {
+            this match {
+                case NoScheme => ()
+                case _ => assertObjectProperty(individual, prop, node)
+            }
+        }
+
+        case RepresentationScheme extends ConceptScheme(repScheme, ":representationScheme")
+        case TaxonomyScheme extends ConceptScheme(conceptScheme, ":conceptScheme")
+        case NoScheme extends ConceptScheme(bottom, ":intransitiveExactMatch")
 
     private def getMorkClass(shortName: String) = {
         factory.getOWLClass(shortName, morkPrefixManager)
@@ -48,6 +73,11 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
         val morkImport = factory.getOWLImportsDeclaration(morkBaseIRI)
         manager.applyChange(new AddImport(ontology, morkImport))
+
+        assertIndividual(representationSchemeID, morkRepSchemeDef,
+                         noPrefix = true, scheme = ConceptScheme.NoScheme)
+        assertIndividual(taxaSchemeID, morkDCSchemeDef,
+                         noPrefix = true, scheme = ConceptScheme.NoScheme)
 
         logger.whenDebugEnabled {
             logger.debug("Imports Closure")
@@ -88,7 +118,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
     def addMemberProperty(broader: String, narrower: String): Unit = {
         val child = getNamedIndividual(narrower)
-        assertObjectProperty(broader, child, ":memberProperty")
+        assertObjectProperty(broader, ":memberProperty", child)
     }
 
     def addRepEntityAnon(to: String): String = {
@@ -97,7 +127,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
             val id = anonID
             anonymousEntities += id
             val individual = assertIndividual(id, morkAnonEntityDef, noIdent = true)
-            assertObjectProperty(to, individual, ":elementType")
+            assertObjectProperty(to, ":elementType", individual)
             id
         // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
     }
@@ -108,7 +138,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit = {
         val individual = assertIndividual(what, morkAttributeDef)
-        assertObjectProperty(where, individual, ":memberProperty")
+        assertObjectProperty(where, ":memberProperty", individual)
 
         val propIRI = assertDataPropertyRange(what, underlying.xsdType)
         assertRdfsSeeAlso(propIRI, individual)
@@ -140,27 +170,45 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         individual
     }
 
-    private def assertObjectProperty(broader: String, child: OWLIndividual, propertyName: String): Unit = {
-        val parent = getNamedIndividual(broader)
+    private def assertObjectProperty(subject: String, propertyName: String, obj: OWLIndividual): Unit = {
+        assertObjectProperty(getNamedIndividual(subject), propertyName, obj)
+    }
+
+    private def assertObjectProperty(subject: OWLIndividual, propertyName: String, obj: OWLIndividual): Unit = {
         val expr = factory.getOWLObjectProperty(propertyName, morkPrefixManager)
-        val propAssertion = factory.getOWLObjectPropertyAssertionAxiom(expr, parent, child)
+        val propAssertion = factory.getOWLObjectPropertyAssertionAxiom(expr, subject, obj)
 
         manager.applyChange(AddAxiom(ontology, propAssertion))
     }
 
     private def assertIndividual(id: String, ofClass: OWLClassExpression,
-                                 noIdent: Boolean = false): OWLNamedIndividual = {
-        val individual = getNamedIndividual(id)
+                                 noIdent: Boolean = false, noPrefix: Boolean = false,
+                                 scheme: ConceptScheme = ConceptScheme.RepresentationScheme): OWLNamedIndividual = {
+        val individual = if noPrefix then getPrefixedNamedIndividual(id) else getNamedIndividual(id)
         val clsAssertion = factory.getOWLClassAssertionAxiom(ofClass, individual)
 
         manager.applyChange(AddAxiom(ontology, clsAssertion))
 
-        if noIdent then identifyIndividual("", individual)
-        else identifyIndividual(id, individual)
+        val indiv = if noIdent then identifyIndividual("", individual)
+                    else identifyIndividual(id, individual)
+        assertSkosNote(id, indiv)
+        scheme.assertInScheme(indiv)
+        indiv
     }
 
-    private def getNamedIndividual(id: String) = {
-        factory.getOWLNamedIndividual(":" + prefix(id), mappingPrefixManager)
+    private def getPrefixedNamedIndividual(id: String): OWLNamedIndividual = {
+        factory.getOWLNamedIndividual(":" + id, mappingPrefixManager)
+    }
+
+    private def getNamedIndividual(id: String): OWLNamedIndividual = getPrefixedNamedIndividual(prefix(id))
+
+    private def assertSkosNote(id: String, individual: OWLNamedIndividual): OWLNamedIndividual = {
+        val note = "Individual Representation " + prefix(id) + ", created-by krom"
+        val skosNote = factory.getOWLAnnotationProperty(config.skosBaseIRI + "#note")
+        val annotation = factory.getOWLAnnotation(skosNote, factory.getOWLLiteral(note))
+        val annotationAxiom = factory.getOWLAnnotationAssertionAxiom(individual.getIRI, annotation)
+        manager.applyChange(AddAxiom(ontology, annotationAxiom))
+        individual
     }
 
     // TODO: SWRL (or SHACL) axioms to correlate anonymous members that share the same type def
@@ -170,7 +218,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private def prefix(id: String): String = {
         // TODO: configurable prefix/suffix setup?
         if id.startsWith("Rep_") then id
-        else "Rep_" + id
+        else "Rep_" + id.capitalize
     }
 }
 
