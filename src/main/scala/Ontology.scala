@@ -34,6 +34,8 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private lazy val morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
     private lazy val morkAnonEntity: OWLClass = getMorkClass(":AnonymousEntity")
     private lazy val morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
+    private lazy val morkCollectionElem: OWLClass = getMorkClass(":ScalarValue")
+    private lazy val morkCollectionElemDef: OWLClassExpression = morkCollectionElem.getNNF
     private lazy val morkEntity: OWLClass = getMorkClass(":Entity")
     private lazy val morkEntityDef: OWLClassExpression = morkEntity.getNNF
     private lazy val morkArray: OWLClass = getMorkClass(":Array")
@@ -179,6 +181,16 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
             assertObjectProperty(to, ":elementType", individual)
             objectifyAssociation(to, getNamedIndividual(to), id, individual)
             id
+    }
+
+    def addCollectionElement(to: String, dataType: DataType): Unit = {
+        val id = to.concat("_Element").concat(counter.incrementAndGet().toString)
+        val individual = assertIndividual(id, morkCollectionElemDef)
+        assertObjectProperty(to, ":elementType", individual)
+
+        val dpEx = factory.getOWLDataProperty(id, mappingPrefixManager)
+        val rangeAxiom = factory.getOWLDataPropertyRangeAxiom(dpEx, dataType.toOwlDataType(factory))
+        manager.applyChange(AddAxiom(ontology, rangeAxiom))
     }
 
     def addRepresentationEntity(id: String): Unit = {

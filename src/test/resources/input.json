@@ -18,7 +18,10 @@
     "conditions": {
       "exclCosts": "costs excluded: [list of costs]",
       "coolingOffPeriodDays": 21,
-      "maximumNonNegotiatedPayment": 21000.00
+      "maximumNonNegotiatedPayment": 21000.00,
+      "combinedLimitSymbols": [
+        "01_ANY_AUTO"
+      ]
     }
   }
 }

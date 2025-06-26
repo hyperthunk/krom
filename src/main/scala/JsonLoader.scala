@@ -103,14 +103,30 @@ case class JListState(listID: String, outer: JBOFState | JPropState, parser: Jac
         extends ParserState(outer, parser, ontology), Logger("ARRAY") {
 
     override def nextState(id: String, token: JsonToken): ParserState = {
-        (token, outer) match {
-            case (START_OBJECT, _: JBOFState) => JObjState(id, this, parser, ontology)
-            case (START_OBJECT, _: JPropState) =>
+        (token, token.isScalarValue, outer) match {
+            case (START_OBJECT, _, _: JBOFState) => JObjState(id, this, parser, ontology)
+            case (START_OBJECT, _, _: JPropState) =>
                 debug((listID, token))
                 val repID = ontology.addRepEntityAnon(listID)
                 JObjState(repID, this, parser, ontology)
-            case (END_OBJECT, _) => this
-            case (END_ARRAY, _) => outer
+            case (END_OBJECT, _, _) => this
+            case (END_ARRAY, _, _) => outer
+            case (_, true, _) =>
+                def addAttr[T](att: T): ParserState = {
+                    val underlying = Scalar(att)
+                    debug(("write value", id, underlying.asType[T], underlying.xsdType, token))
+                    ontology.addCollectionElement(listID, underlying.xsdType)
+                    this
+                }
+                debug((listID, token))
+                token match {
+                    case VALUE_STRING => addAttr[String](parser.getValueAsString)
+                    case VALUE_NUMBER_INT => addAttr[Int](parser.getValueAsInt)
+                    case VALUE_NUMBER_FLOAT => addAttr[Double](parser.getValueAsDouble)
+                    case VALUE_FALSE => addAttr[Boolean](parser.getValueAsBoolean)
+                    case VALUE_TRUE => addAttr[Boolean](parser.getValueAsBoolean)
+                }
+                this
             // TODO: if we see a scalar value then we should keep a list of potential type bindings
             case _ => invalidState(id, token)
         }
