@@ -49,6 +49,11 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private lazy val conceptScheme: OWLNamedIndividual = getPrefixedNamedIndividual(taxaSchemeID)
     private lazy val bottom: OWLNamedIndividual = factory.getOWLNamedIndividual(":Bottom", morkPrefixManager)
 
+    private lazy val morkAssociativeBroadConceptRoleIRI =
+        factory.getOWLObjectProperty(morkAssociativeBroadConceptRole, morkPrefixManager).getIRI
+    private lazy val morkAssociativeNarrowConceptRoleIRI =
+        factory.getOWLObjectProperty(morkAssociativeNarrowConceptRole, morkPrefixManager).getIRI
+
     private val morkMemberPropertyLabel = ":memberProperty"
     private val morkAssociativeBroadConceptRole = ":broadConceptRole"
     private val morkAssociativeNarrowConceptRole = ":narrowConceptRole"
@@ -107,11 +112,11 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         val noScheme = ConceptScheme.NoScheme
         val rep = assertIndividual(representationSchemeID, morkRepSchemeDef,
                                    skipIdent = true, noPrefix = true, scheme = noScheme)
-        assertSkosNote(representationSchemeID, "Representation Concept Scheme", rep, noScheme)
+        assertSkosNote("Representation Concept Scheme", rep)
 
         val taxa = assertIndividual(taxaSchemeID, morkDCSchemeDef,
                                     skipIdent = true, noPrefix = true, scheme = noScheme)
-        assertSkosNote(representationSchemeID, "Taxonomy Concept Scheme", taxa, noScheme)
+        assertSkosNote("Taxonomy Concept Scheme", taxa)
 
         logger.whenDebugEnabled {
             logger.debug("Imports Closure")
@@ -175,6 +180,10 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
             skipIdent = true, scheme = ConceptScheme.TaxonomyScheme)
         assertObjectProperty(objFact, morkAssociativeBroadConceptRole, subj)
         assertObjectProperty(objFact, morkAssociativeNarrowConceptRole, obj)
+
+        assertSkosNote("Models an association between DataConcepts, created-by krom", objFact)
+        assertRdfsSeeAlso(morkAssociativeBroadConceptRoleIRI, objFact)
+        assertRdfsSeeAlso(morkAssociativeNarrowConceptRoleIRI, objFact)
     }
 
     def addRepresentationEntity(id: String): Unit = {
@@ -269,10 +278,9 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private def assertSkosRepNote(id: String, individual: OWLNamedIndividual,
                                   scheme: ConceptScheme): OWLNamedIndividual =
         val note = "Individual Representation " + scheme.prefixed(id) + ", created-by krom"
-        assertSkosNote(id, note, individual, scheme)
+        assertSkosNote(note, individual)
 
-    private def assertSkosNote(id: String, note: String, individual: OWLNamedIndividual,
-                               scheme: ConceptScheme): OWLNamedIndividual = {
+    private def assertSkosNote(note: String, individual: OWLNamedIndividual): OWLNamedIndividual = {
         val skosNote = factory.getOWLAnnotationProperty(config.skosBaseIRI + "#note")
         val annotation = factory.getOWLAnnotation(skosNote, factory.getOWLLiteral(note))
         val annotationAxiom = factory.getOWLAnnotationAssertionAxiom(individual.getIRI, annotation)
