@@ -57,8 +57,11 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         factory.getOWLObjectProperty(morkAssociativeNarrowConceptRole, morkPrefixManager).getIRI
 
     private val morkMemberPropertyLabel = ":memberProperty"
+    private val morkElementTypePropertyLabel = ":elementType"
     private val morkAssociativeBroadConceptRole = ":broadConceptRole"
     private val morkAssociativeNarrowConceptRole = ":narrowConceptRole"
+    private val morkExternalPropertyValueKey = ":externalPropertyValue"
+    private val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
 
     private def scheme(suffix: String): String = shortName(config.kromBaseIRI) + "_" + suffix
 
@@ -178,7 +181,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
             val id = anonID
             anonymousEntities += id
             val individual = assertIndividual(id, morkAnonEntityDef, noIdent = true)
-            assertObjectProperty(to, ":elementType", individual)
+            assertObjectProperty(to, morkElementTypePropertyLabel, individual)
             objectifyAssociation(to, getNamedIndividual(to), id, individual)
             id
     }
@@ -186,11 +189,9 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     def addCollectionElement(to: String, dataType: DataType): Unit = {
         val id = to.concat("_Element").concat(counter.incrementAndGet().toString)
         val individual = assertIndividual(id, morkCollectionElemDef)
-        assertObjectProperty(to, ":elementType", individual)
-
-        val dpEx = factory.getOWLDataProperty(id, mappingPrefixManager)
-        val rangeAxiom = factory.getOWLDataPropertyRangeAxiom(dpEx, dataType.toOwlDataType(factory))
-        manager.applyChange(AddAxiom(ontology, rangeAxiom))
+        assertObjectProperty(to, morkElementTypePropertyLabel, individual)
+        val propIRI = assertDataPropertyRange(id, morkCollectionElementScalarValueKey, dataType)
+        assertRdfsSeeAlso(propIRI, individual)
     }
 
     def addRepresentationEntity(id: String): Unit = {
@@ -230,9 +231,12 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         assertRdfsSeeAlso(morkAssociativeNarrowConceptRoleIRI, objFact)
     }
 
-    private def assertDataPropertyRange(id: String, dataType: DataType): IRI = {
-        val identProp = factory.getOWLDataProperty(":externalPropertyValue", morkPrefixManager)
-        val dpEx = factory.getOWLDataProperty(":ex_prop_" + id, mappingPrefixManager)
+    private def assertDataPropertyRange(id: String, dataType: DataType): IRI =
+        assertDataPropertyRange(":ex_prop_" + id, morkExternalPropertyValueKey, dataType)
+
+    private def assertDataPropertyRange(id: String, propKey: String, dataType: DataType): IRI = {
+        val identProp = factory.getOWLDataProperty(propKey, morkPrefixManager)
+        val dpEx = factory.getOWLDataProperty(id, mappingPrefixManager)
         val subPropAxiom = factory.getOWLSubDataPropertyOfAxiom(dpEx, identProp)
         val rangeAxiom = factory.getOWLDataPropertyRangeAxiom(dpEx, dataType.toOwlDataType(factory))
 
