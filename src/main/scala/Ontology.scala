@@ -58,7 +58,9 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private val morkAssociativeBroadConceptRole = ":broadConceptRole"
     private val morkAssociativeNarrowConceptRole = ":narrowConceptRole"
 
-    private def scheme(suffix: String): String = config.kromBaseIRI.split("/").last + "_" + suffix
+    private def scheme(suffix: String): String = shortName(config.kromBaseIRI) + "_" + suffix
+
+    private def shortName(iri: String) = iri.split("/").last
 
     private enum ConceptScheme(val node: OWLNamedIndividual, val prop: String):
 
@@ -83,12 +85,18 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         private def identifier(pfx: Option[String],
                                sfx: Option[String], it: String): Option[String] = (pfx, sfx) match {
             case (None, None) => Some(it)
-            case (Some(prefix), None) => if it.startsWith(prefix) then Some(it) else Some(prefix + it)
-            case (None, Some(suffix)) => if it.endsWith(suffix) then Some(it) else Some(it + suffix)
+            case (Some(prefix), None) =>
+                nonEmptyAffix(_.startsWith(prefix), prefix.concat.apply andThen Some.apply)(it)
+            case (None, Some(suffix)) =>
+                nonEmptyAffix(_.endsWith(suffix), s => Some(s.concat(suffix)))(it)
             case (Some(prefix), Some(suffix)) =>
                 if it.startsWith(prefix) && it.endsWith(suffix) then Some(it)
-                else Some(prefix + it + suffix)
+                else Some(prefix.concat(it).concat(suffix))
         }
+
+        private def nonEmptyAffix(pred: String => Boolean, mk: String => Option[String])
+                                 (s: String): Option[String] =
+            if pred(s) then Some(s) else mk(s)
 
         case RepresentationScheme extends ConceptScheme(repScheme, ":representationScheme")
         case TaxonomyScheme extends ConceptScheme(conceptScheme, ":conceptScheme")
@@ -158,32 +166,19 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     def addMemberProperty(broader: String, narrower: String): Unit = {
         val child = getNamedIndividual(narrower)
         val (subj, obj) = assertObjectProperty(broader, morkMemberPropertyLabel, child)
-
-        // properties are inherent data concepts that must be reified
-        objectifyAssociation(broader.capitalize + "_" + narrower.capitalize, subj, obj)
+        objectifyAssociation(broader, subj, narrower, obj)
     }
 
     def addRepEntityAnon(to: String): String = {
         if anonymousEntities.contains(to) then to
         else
+            // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
             val id = anonID
             anonymousEntities += id
             val individual = assertIndividual(id, morkAnonEntityDef, noIdent = true)
             assertObjectProperty(to, ":elementType", individual)
-            objectifyAssociation(to.capitalize + "_" + id.capitalize, getNamedIndividual(to), individual)
+            objectifyAssociation(to, getNamedIndividual(to), id, individual)
             id
-        // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
-    }
-
-    def objectifyAssociation(id: String, subj: OWLIndividual, obj: OWLIndividual): Unit = {
-        val objFact = assertIndividual(id, morkObjectificationDef,
-            skipIdent = true, scheme = ConceptScheme.TaxonomyScheme)
-        assertObjectProperty(objFact, morkAssociativeBroadConceptRole, subj)
-        assertObjectProperty(objFact, morkAssociativeNarrowConceptRole, obj)
-
-        assertSkosNote("Models an association between DataConcepts, created-by krom", objFact)
-        assertRdfsSeeAlso(morkAssociativeBroadConceptRoleIRI, objFact)
-        assertRdfsSeeAlso(morkAssociativeNarrowConceptRoleIRI, objFact)
     }
 
     def addRepresentationEntity(id: String): Unit = {
@@ -204,6 +199,25 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         assertRdfsSeeAlso(propIRI, individual)
     }
 
+    // properties are inherent data concepts that must be reified
+    private def objectifyAssociation(subjName: String,
+                                     subj: OWLNamedIndividual,
+                                     objName: String,
+                                     obj: OWLNamedIndividual): Unit = {
+        val id = subjName.capitalize + "_" + objName.capitalize
+        val objFact: OWLNamedIndividual =
+            assertIndividual(id, morkObjectificationDef,
+                             skipIdent = true, scheme = ConceptScheme.TaxonomyScheme)
+        assertObjectProperty(objFact, morkAssociativeBroadConceptRole, subj)
+        assertObjectProperty(objFact, morkAssociativeNarrowConceptRole, obj)
+
+        val subjectID = ConceptScheme.RepresentationScheme.prefixed(subjName)
+        val txt = s"Models an association between $subjectID and $objName, created-by krom"
+        assertSkosNote(txt, objFact)
+        assertRdfsSeeAlso(morkAssociativeBroadConceptRoleIRI, objFact)
+        assertRdfsSeeAlso(morkAssociativeNarrowConceptRoleIRI, objFact)
+    }
+
     private def assertDataPropertyRange(id: String, dataType: DataType): IRI = {
         val identProp = factory.getOWLDataProperty(":externalPropertyValue", morkPrefixManager)
         val dpEx = factory.getOWLDataProperty(":ex_prop_" + id, mappingPrefixManager)
@@ -215,13 +229,6 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         dpEx.getIRI
     }
 
-    private def assertRdfsSeeAlso(otherIRI: IRI, individual: OWLNamedIndividual): Unit = {
-        val annotation = factory.getOWLAnnotation(factory.getRDFSSeeAlso, otherIRI)
-        val annotationAxiom = factory.getOWLAnnotationAssertionAxiom(individual.getIRI, annotation)
-
-        manager.applyChange(AddAxiom(ontology, annotationAxiom))
-    }
-
     private def identifyIndividual(id: String, individual: OWLNamedIndividual): OWLNamedIndividual = {
         val identProp = factory.getOWLDataProperty(":identifier", morkPrefixManager)
         val propAssertion = factory.getOWLDataPropertyAssertionAxiom(identProp, individual, id)
@@ -231,12 +238,12 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     }
 
     private def assertObjectProperty(subject: String, propertyName: String,
-                                     obj: OWLIndividual): (sub: OWLIndividual, obj: OWLIndividual) = {
+                                     obj: OWLNamedIndividual): (sub: OWLNamedIndividual, obj: OWLNamedIndividual) = {
         assertObjectProperty(getNamedIndividual(subject), propertyName, obj)
     }
 
-    private def assertObjectProperty(subject: OWLIndividual, propertyName: String,
-                                     obj: OWLIndividual): (sub: OWLIndividual, obj: OWLIndividual) = {
+    private def assertObjectProperty(subject: OWLNamedIndividual, propertyName: String,
+                                     obj: OWLNamedIndividual): (sub: OWLNamedIndividual, obj: OWLNamedIndividual) = {
         val expr = factory.getOWLObjectProperty(propertyName, morkPrefixManager)
         val propAssertion = factory.getOWLObjectPropertyAssertionAxiom(expr, subject, obj)
 
@@ -275,6 +282,8 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
                                    scheme: ConceptScheme = ConceptScheme.RepresentationScheme): OWLNamedIndividual =
         getPrefixedNamedIndividual(scheme.prefixed(id))
 
+    // management of notes and comments
+
     private def assertSkosRepNote(id: String, individual: OWLNamedIndividual,
                                   scheme: ConceptScheme): OWLNamedIndividual =
         val note = "Individual Representation " + scheme.prefixed(id) + ", created-by krom"
@@ -286,6 +295,13 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         val annotationAxiom = factory.getOWLAnnotationAssertionAxiom(individual.getIRI, annotation)
         manager.applyChange(AddAxiom(ontology, annotationAxiom))
         individual
+    }
+
+    private def assertRdfsSeeAlso(otherIRI: IRI, individual: OWLNamedIndividual): Unit = {
+        val annotation = factory.getOWLAnnotation(factory.getRDFSSeeAlso, otherIRI)
+        val annotationAxiom = factory.getOWLAnnotationAssertionAxiom(individual.getIRI, annotation)
+
+        manager.applyChange(AddAxiom(ontology, annotationAxiom))
     }
 
     // TODO: SWRL (or SHACL) axioms to correlate anonymous members that share the same type def
