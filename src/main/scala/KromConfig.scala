@@ -25,6 +25,10 @@ class KromConfig private(val morkURL: URL,
                          val morkBaseIRI: String,
                          val skosBaseIRI: String,
                          val kromBaseIRI: String,
+                         val kromRepPrefix: Option[String],
+                         val kromRepSuffix: Option[String],
+                         val kromTaxaPrefix: Option[String],
+                         val kromTaxaSuffix: Option[String],
                          val input: IOMode,
                          val output: IOMode,
                          val format: OntologyFormat) {
@@ -75,6 +79,10 @@ object KromConfig {
     private final val skosBaseIRIKey: String = key("SkosBaseIRI")
     private final val morkBaseIRIKey: String = key("MorkBaseIRI")
     private final val kromBaseIRIKey: String = key("KromBaseIRI")
+    private final val kromRepPrefixKey: String = key("KromRepresentationPrefix")
+    private final val kromRepSuffixKey: String = key("KromRepresentationSuffix")
+    private final val kromTaxaPrefixKey: String = key("KromTaxonomyPrefix")
+    private final val kromTaxaSuffixKey: String = key("KromTaxonomySuffix")
 
     def key(s: String): String = baseConfigPath + s
 
@@ -88,10 +96,18 @@ object KromConfig {
             val skos = config.getString(skosBaseIRIKey)
             val mork = config.getString(morkBaseIRIKey)
             val krom = config.getString(kromBaseIRIKey)
+            val repPrefix = optConfig(config, kromRepPrefixKey)
+            val repSuffix = optConfig(config, kromRepSuffixKey)
+            val taxaPrefix = optConfig(config, kromTaxaPrefixKey)
+            val taxaSuffix = optConfig(config, kromTaxaSuffixKey)
             KromConfig(URI.create(morkUrl).toURL, mork, skos, krom,
+                repPrefix, repSuffix, taxaPrefix, taxaSuffix,
                 inputIO, outputIO, OntologyFormat.valueOf(format))
         catch
             case cfgEx: ConfigurationException => throw new ConfigurationException(cfgEx.getMessage, cfgEx)
+
+    private def optConfig(conf: Config, key: String): Option[String] =
+        if conf.hasPath(key) then Some(conf.getString(key)) else None
 
     private def configIO(conf: Config, key: String, sio: String): IOMode =
         if conf.hasPath(key) then IOMode(Some(conf.getString(key)))
