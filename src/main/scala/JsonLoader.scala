@@ -13,34 +13,32 @@ type JacksonParser = com.fasterxml.jackson.core.JsonParser
 class JsonLoader(private val io: InputStream,
                  private val factory: JsonFactory) extends Logger("JsonLoader") {
 
-    def load(ontology: Ontology): Unit = {
+    def load(ontology: Ontology): Unit =
         val parser = factory.createParser(io)
         parse(parser, JBOFState(parser, ontology))
-    }
 
     @tailrec
-    private def parse(parser: JacksonParser, state: ParserState): Unit = {
+    private def parse(parser: JacksonParser, state: ParserState): Unit =
         val token = parser.nextToken()
         if token == null then ()
         else
             val id = parser.getCurrentName
             debug(("parse", token, id))
             parse(parser, state.nextState(id, token))
-    }
+
 }
 
 object JsonLoader {
     private val factory: JsonFactory = new JsonFactory()
 
-    def load(config: KromConfig): Ontology = {
+    def load(config: KromConfig): Ontology =
         val ontology = Ontology.openOntology(config)
         config.withInputStream(load.apply(_, ontology))
-    }
 
-    private def load(io: InputStream, ontology: Ontology): Ontology = {
+    private def load(io: InputStream, ontology: Ontology): Ontology =
         new JsonLoader(io, factory).load(ontology)
         ontology
-    }
+
 }
 
 /** Base exception for throwing parsing failures as RuntimeExceptions.
@@ -48,17 +46,12 @@ object JsonLoader {
 class JsonParserException(msg: String) extends RuntimeException(msg)
 
 private sealed trait Logger(id: String) extends LazyLogging {
-    def debug(op: String, token: JsonToken): Unit = {
+    def debug(op: String, token: JsonToken): Unit =
         logger.whenDebugEnabled {
             logger.debug("Op: " + op + ", Token: " + token + ", id: " + id)
         }
-    }
 
-    def debug(msg: Any): Unit = {
-        logger.whenDebugEnabled {
-            logger.debug(msg.toString)
-        }
-    }
+    def debug(msg: Any): Unit = logger.whenDebugEnabled { logger.debug(msg.toString) }
 }
 
 trait ParserState(outer: ParserState = null, parser: JacksonParser, ontology: Ontology) extends Logger {
@@ -74,6 +67,7 @@ trait ParserState(outer: ParserState = null, parser: JacksonParser, ontology: On
         throw ex
     }
 }
+
 case class JBOFState(parser: JacksonParser, ontology: Ontology)
         extends ParserState(parser = parser, ontology = ontology), Logger("BOF") {
     override def nextState(id: String, token: JsonToken): ParserState = {
@@ -84,6 +78,7 @@ case class JBOFState(parser: JacksonParser, ontology: Ontology)
         }
     }
 }
+
 case class JObjState(id: String, outer: ParserState, parser: JacksonParser, ontology: Ontology)
         extends ParserState(outer, parser, ontology), Logger(id) {
     override def nextState(id: String, token: JsonToken): ParserState = {
@@ -99,6 +94,7 @@ case class JObjState(id: String, outer: ParserState, parser: JacksonParser, onto
         }
     }
 }
+
 case class JListState(listID: String, outer: JBOFState | JPropState, parser: JacksonParser, ontology: Ontology)
         extends ParserState(outer, parser, ontology), Logger("ARRAY") {
 
@@ -125,13 +121,14 @@ case class JListState(listID: String, outer: JBOFState | JPropState, parser: Jac
                     case VALUE_NUMBER_FLOAT => addAttr[Double](parser.getValueAsDouble)
                     case VALUE_FALSE => addAttr[Boolean](parser.getValueAsBoolean)
                     case VALUE_TRUE => addAttr[Boolean](parser.getValueAsBoolean)
+                    case _ => this
                 }
-                this
             // TODO: if we see a scalar value then we should keep a list of potential type bindings
             case _ => invalidState(id, token)
         }
     }
 }
+
 case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontology)
         extends ParserState(outer, parser, ontology), Logger(outer.id) {
 
