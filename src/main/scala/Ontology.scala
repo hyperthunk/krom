@@ -61,6 +61,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private val morkBroadConceptRoleKey = ":broadConceptRole"
     private val morkNarrowConceptRoleKey = ":narrowConceptRole"
     private val morkRepresentedAsKey = ":representedAs"
+    private val morkRepresentationOfKey = ":representationOf"
     private val morkExternalPropertyValueKey = ":externalPropertyValue"
     private val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
 
@@ -186,11 +187,14 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         assertRdfsSeeAlso(propIRI, individual)
 
     def addRepresentationEntity(id: String): Unit =
-        val entity = assertIndividual(id, morkEntityDef)
-        assertClass(entity, morkConceptDef)
-        ConceptScheme.TaxonomyScheme.assertInScheme(entity)
+        val individual = assertIndividual(id, morkEntityDef)
+        assertClass(individual, morkConceptDef)
+        ConceptScheme.TaxonomyScheme.assertInScheme(individual)
+        assertObjectProperty(individual, morkRepresentationOfKey, individual)
 
-    def addRepresentationArray(id: String): Unit = assertIndividual(id, morkArrayDef)
+    def addRepresentationArray(id: String): Unit =
+        val individual = assertIndividual(id, morkArrayDef)
+        assertObjectProperty(individual, morkRepresentationOfKey, individual)
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
         val individual = assertIndividual(what, morkAttributeDef)
