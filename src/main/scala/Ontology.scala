@@ -52,14 +52,15 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private lazy val bottom: OWLNamedIndividual = factory.getOWLNamedIndividual(":Bottom", morkPrefixManager)
 
     private lazy val morkAssociativeBroadConceptRoleIRI =
-        factory.getOWLObjectProperty(morkAssociativeBroadConceptRole, morkPrefixManager).getIRI
+        factory.getOWLObjectProperty(morkBroadConceptRoleKey, morkPrefixManager).getIRI
     private lazy val morkAssociativeNarrowConceptRoleIRI =
-        factory.getOWLObjectProperty(morkAssociativeNarrowConceptRole, morkPrefixManager).getIRI
+        factory.getOWLObjectProperty(morkNarrowConceptRoleKey, morkPrefixManager).getIRI
 
-    private val morkMemberPropertyLabel = ":memberProperty"
-    private val morkElementTypePropertyLabel = ":elementType"
-    private val morkAssociativeBroadConceptRole = ":broadConceptRole"
-    private val morkAssociativeNarrowConceptRole = ":narrowConceptRole"
+    private val morkMemberPropertyKey = ":memberProperty"
+    private val morkElementTypeKey = ":elementType"
+    private val morkBroadConceptRoleKey = ":broadConceptRole"
+    private val morkNarrowConceptRoleKey = ":narrowConceptRole"
+    private val morkRepresentedAsKey = ":representedAs"
     private val morkExternalPropertyValueKey = ":externalPropertyValue"
     private val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
 
@@ -162,7 +163,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
     def addMemberProperty(broader: String, narrower: String): Unit =
         val child = getNamedIndividual(narrower)
-        val (subj, obj) = assertObjectProperty(broader, morkMemberPropertyLabel, child)
+        val (subj, obj) = assertObjectProperty(broader, morkMemberPropertyKey, child)
         objectifyAssociation(broader, subj, narrower, obj)
 
     def addRepEntityAnon(to: String): String =
@@ -172,15 +173,16 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
             val id = anonID
             anonymousEntities += id
             val individual = assertIndividual(id, morkAnonEntityDef, noIdent = true)
-            assertObjectProperty(to, morkElementTypePropertyLabel, individual)
+            assertObjectProperty(to, morkElementTypeKey, individual)
             objectifyAssociation(to, getNamedIndividual(to), id, individual)
             id
 
     def addCollectionElement(to: String, dataType: DataType): Unit =
         val id = to.concat("_Element").concat(counter.incrementAndGet().toString)
         val individual = assertIndividual(id, morkCollectionElemDef)
-        assertObjectProperty(to, morkElementTypePropertyLabel, individual)
+        assertObjectProperty(to, morkElementTypeKey, individual)
         val propIRI = assertDataPropertyRange(id, morkCollectionElementScalarValueKey, dataType)
+        assertObjectProperty(propIRI.getIRIString, morkRepresentedAsKey, individual)
         assertRdfsSeeAlso(propIRI, individual)
 
     def addRepresentationEntity(id: String): Unit =
@@ -192,11 +194,12 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
         val individual = assertIndividual(what, morkAttributeDef)
-        assertObjectProperty(where, morkMemberPropertyLabel, individual)
+        assertObjectProperty(where, morkMemberPropertyKey, individual)
         assertClass(individual, morkConceptDef)
         ConceptScheme.TaxonomyScheme.assertInScheme(individual)
 
         val propIRI = assertDataPropertyRange(what, underlying.xsdType)
+        assertObjectProperty(propIRI.getIRIString, morkRepresentedAsKey, individual)
         assertRdfsSeeAlso(propIRI, individual)
 
     // properties are inherent data concepts that must be reified
@@ -208,8 +211,8 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         val objFact: OWLNamedIndividual =
             assertIndividual(id, morkObjectificationDef,
                              skipIdent = true, scheme = ConceptScheme.TaxonomyScheme)
-        assertObjectProperty(objFact, morkAssociativeBroadConceptRole, subj)
-        assertObjectProperty(objFact, morkAssociativeNarrowConceptRole, obj)
+        assertObjectProperty(objFact, morkBroadConceptRoleKey, subj)
+        assertObjectProperty(objFact, morkNarrowConceptRoleKey, obj)
 
         val subjectID = ConceptScheme.RepresentationScheme.prefixed(subjName)
         val txt = s"Models an association between $subjectID and $objName, created-by krom"
