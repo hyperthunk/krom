@@ -33,9 +33,9 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private lazy val morkDCSchemeDef: OWLClassExpression = morkDCScheme.getNNF
     private lazy val morkAttribute: OWLClass = getMorkClass(":Attribute")
     private lazy val morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
-    private lazy val morkAnonEntity: OWLClass = getMorkClass(":AnonymousEntity")
+    private lazy val morkAnonEntity: OWLClass = getMorkClass(":AnonymousElement")
     private lazy val morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
-    private lazy val morkCollectionElem: OWLClass = getMorkClass(":ScalarValue")
+    private lazy val morkCollectionElem: OWLClass = getMorkClass(":ScalarValueElement")
     private lazy val morkCollectionElemDef: OWLClassExpression = morkCollectionElem.getNNF
     private lazy val morkEntity: OWLClass = getMorkClass(":Entity")
     private lazy val morkEntityDef: OWLClassExpression = morkEntity.getNNF
