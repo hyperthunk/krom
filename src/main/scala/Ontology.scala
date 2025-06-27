@@ -2,6 +2,7 @@ package org.nebularis.krom
 
 import com.typesafe.scalalogging.LazyLogging
 import org.nebularis.krom.DataType
+import org.nebularis.krom.Ontology.*
 import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
@@ -55,16 +56,6 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         factory.getOWLObjectProperty(morkBroadConceptRoleKey, morkPrefixManager).getIRI
     private lazy val morkAssociativeNarrowConceptRoleIRI =
         factory.getOWLObjectProperty(morkNarrowConceptRoleKey, morkPrefixManager).getIRI
-
-    private val morkIdentifierPropertyKey = ":identifier"
-    private val morkMemberPropertyKey = ":memberProperty"
-    private val morkElementTypeKey = ":elementType"
-    private val morkBroadConceptRoleKey = ":broadConceptRole"
-    private val morkNarrowConceptRoleKey = ":narrowConceptRole"
-    private val morkRepresentedAsKey = ":representedAs"
-    private val morkRepresentationOfKey = ":representationOf"
-    private val morkExternalPropertyValueKey = ":externalPropertyValue"
-    private val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
 
     private def scheme(suffix: String): String = shortName(config.kromBaseIRI) + "_" + suffix
 
@@ -196,7 +187,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     def addRepresentationArray(id: String): Unit =
         val individual = assertIndividual(id, morkArrayDef)
         assertObjectProperty(individual, morkRepresentationOfKey, individual)
-        assertDatatypeProperty(individual, ":orderedItems", Scalar(false))
+        assertDatatypeProperty(individual, morkOrderedItemsKey, Scalar(false))
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
         val individual = assertIndividual(what, morkAttributeDef)
@@ -240,11 +231,6 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         dpEx.getIRI
 
     private def identifyIndividual(id: String, individual: OWLNamedIndividual): OWLNamedIndividual =
-        /*val identProp = factory.getOWLDataProperty(morkIdentifierPropertyKey, morkPrefixManager)
-        val propAssertion = factory.getOWLDataPropertyAssertionAxiom(identProp, individual, id)
-
-        manager.applyChange(AddAxiom(ontology, propAssertion))
-        individual*/
         assertDatatypeProperty(individual, morkIdentifierPropertyKey, Scalar(id))
 
     private def assertObjectProperty(subject: String, propertyName: String,
@@ -264,10 +250,9 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
                                        scalar: Scalar): OWLNamedIndividual =
         val propAssertion = scalar.assertDatatypeProperty(propertyName, individual, factory, morkPrefixManager)
         propAssertion match {
-            case None => ()
-            case Some(prop) => manager.applyChange(AddAxiom(ontology, prop))
+            case None => individual
+            case Some(prop) => manager.applyChange(AddAxiom(ontology, prop)); individual
         }
-        individual
 
     private def assertIndividual(id: String,
                                  ofClass: OWLClassExpression,
@@ -279,13 +264,13 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         val individual = if noPrefix then getPrefixedNamedIndividual(id) else getNamedIndividual(id, scheme)
         assertClass(individual, ofClass)
 
-        val indiv = (skipIdent, noIdent) match {
+        val identifiedIndividual = (skipIdent, noIdent) match {
             case (true, _) => individual
             case (false, true) => identifyIndividual("", assertSkosRepNote(id, individual, scheme))
             case (_, false) => identifyIndividual(id, assertSkosRepNote(id, individual, scheme))
         }
-        scheme.assertInScheme(indiv)
-        indiv
+        scheme.assertInScheme(identifiedIndividual)
+        identifiedIndividual
 
     private def assertClass(individual: OWLNamedIndividual, ofClass: OWLClassExpression): Unit =
         val clsAssertion = factory.getOWLClassAssertionAxiom(ofClass, individual)
@@ -327,6 +312,17 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 }
 
 object Ontology {
+    private val morkIdentifierPropertyKey = ":identifier"
+    private val morkMemberPropertyKey = ":memberProperty"
+    private val morkElementTypeKey = ":elementType"
+    private val morkOrderedItemsKey = ":orderedItems"
+    private val morkBroadConceptRoleKey = ":broadConceptRole"
+    private val morkNarrowConceptRoleKey = ":narrowConceptRole"
+    private val morkRepresentedAsKey = ":representedAs"
+    private val morkRepresentationOfKey = ":representationOf"
+    private val morkExternalPropertyValueKey = ":externalPropertyValue"
+    private val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
+
     def openOntology(config: KromConfig): Ontology = {
         val mgr = OWLManager.createOWLOntologyManager()
         val ontology = mgr.createOntology(IRI.create(config.kromBaseIRI))
