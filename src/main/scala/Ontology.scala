@@ -56,6 +56,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private lazy val morkAssociativeNarrowConceptRoleIRI =
         factory.getOWLObjectProperty(morkNarrowConceptRoleKey, morkPrefixManager).getIRI
 
+    private val morkIdentifierPropertyKey = ":identifier"
     private val morkMemberPropertyKey = ":memberProperty"
     private val morkElementTypeKey = ":elementType"
     private val morkBroadConceptRoleKey = ":broadConceptRole"
@@ -195,6 +196,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     def addRepresentationArray(id: String): Unit =
         val individual = assertIndividual(id, morkArrayDef)
         assertObjectProperty(individual, morkRepresentationOfKey, individual)
+        assertDatatypeProperty(individual, ":orderedItems", Scalar(false))
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
         val individual = assertIndividual(what, morkAttributeDef)
@@ -238,11 +240,12 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         dpEx.getIRI
 
     private def identifyIndividual(id: String, individual: OWLNamedIndividual): OWLNamedIndividual =
-        val identProp = factory.getOWLDataProperty(":identifier", morkPrefixManager)
+        /*val identProp = factory.getOWLDataProperty(morkIdentifierPropertyKey, morkPrefixManager)
         val propAssertion = factory.getOWLDataPropertyAssertionAxiom(identProp, individual, id)
 
         manager.applyChange(AddAxiom(ontology, propAssertion))
-        individual
+        individual*/
+        assertDatatypeProperty(individual, morkIdentifierPropertyKey, Scalar(id))
 
     private def assertObjectProperty(subject: String, propertyName: String,
                                      obj: OWLNamedIndividual): (sub: OWLNamedIndividual, obj: OWLNamedIndividual) =
@@ -255,6 +258,16 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
         manager.applyChange(AddAxiom(ontology, propAssertion))
         (subject, obj)
+
+    private def assertDatatypeProperty(individual: OWLNamedIndividual,
+                                       propertyName: String,
+                                       scalar: Scalar): OWLNamedIndividual =
+        val propAssertion = scalar.assertDatatypeProperty(propertyName, individual, factory, morkPrefixManager)
+        propAssertion match {
+            case None => ()
+            case Some(prop) => manager.applyChange(AddAxiom(ontology, prop))
+        }
+        individual
 
     private def assertIndividual(id: String,
                                  ofClass: OWLClassExpression,
