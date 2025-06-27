@@ -186,6 +186,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
     def addRepresentationArray(id: String): Unit =
         val individual = assertIndividual(id, morkArrayDef)
+        assertClass(individual, morkConceptDef)
         assertObjectProperty(individual, morkRepresentationOfKey, individual)
         assertDatatypeProperty(individual, morkOrderedItemsKey, Scalar(false))
 
