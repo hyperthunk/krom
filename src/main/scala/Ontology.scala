@@ -15,8 +15,20 @@ import scala.language.postfixOps;
 
 // TODO: we can make huge type safety improvements here with SYB
 
-class Ontology private (val config: KromConfig, val ontology: OWLOntology,
-                        val manager: OWLOntologyManager) extends LazyLogging {
+trait Initialized(val config: KromConfig, val ontology: OWLOntology,
+                  val manager: OWLOntologyManager) extends LazyLogging {
+
+    def getOwlClass(shortName: String, prefixManager: PrefixManager): OWLClass =
+        manager.getOWLDataFactory.getOWLClass(shortName, prefixManager)
+
+    def getClassExpression(shortName: String, prefixManager: PrefixManager): OWLClassExpression =
+        getOwlClass(shortName, prefixManager).getNNF
+
+
+}
+
+class Ontology private (config: KromConfig, ontology: OWLOntology,
+                        manager: OWLOntologyManager) extends Initialized(config, ontology, manager) {
 
     private val counter = new AtomicLong(Integer.MAX_VALUE)
     private val morkIRI = IRI.create(config.morkURL)
@@ -24,27 +36,27 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
     private val skosBaseIRI = IRI.create(config.skosBaseIRI)
     private val anonymousEntities: mutable.Set[String] = mutable.HashSet.empty
 
-    private lazy val factory: OWLDataFactory = manager.getOWLDataFactory
+    // private lazy val factory: OWLDataFactory = manager.getOWLDataFactory
     private lazy val morkPrefixManager = new DefaultPrefixManager(null, null, config.morkBaseIRI + "#")
     private lazy val mappingPrefixManager = new DefaultPrefixManager(null, null, config.kromBaseIRI + "#")
-    private lazy val morkRepScheme: OWLClass = getMorkClass(":RepresentationScheme")
-    private lazy val morkRepSchemeDef: OWLClassExpression = morkRepScheme.getNNF
-    private lazy val morkDCScheme: OWLClass = getMorkClass(":TaxonomyScheme")
-    private lazy val morkDCSchemeDef: OWLClassExpression = morkDCScheme.getNNF
-    private lazy val morkAttribute: OWLClass = getMorkClass(":Attribute")
-    private lazy val morkAttributeDef: OWLClassExpression = morkAttribute.getNNF
-    private lazy val morkAnonEntity: OWLClass = getMorkClass(":AnonymousElement")
-    private lazy val morkAnonEntityDef: OWLClassExpression = morkAnonEntity.getNNF
-    private lazy val morkCollectionElem: OWLClass = getMorkClass(":ScalarValueElement")
-    private lazy val morkCollectionElemDef: OWLClassExpression = morkCollectionElem.getNNF
-    private lazy val morkEntity: OWLClass = getMorkClass(":Entity")
-    private lazy val morkEntityDef: OWLClassExpression = morkEntity.getNNF
-    private lazy val morkArray: OWLClass = getMorkClass(":Array")
-    private lazy val morkArrayDef: OWLClassExpression = morkArray.getNNF
-    private lazy val morkConcept: OWLClass = getMorkClass(":DataConcept")
-    private lazy val morkConceptDef: OWLClassExpression = morkConcept.getNNF
-    private lazy val morkObjectification: OWLClass = getMorkClass(":Objectification")
-    private lazy val morkObjectificationDef: OWLClassExpression = morkObjectification.getNNF
+    private lazy val morkRepSchemeDef: OWLClassExpression =
+        getClassExpression(":RepresentationScheme", morkPrefixManager).getNNF
+    private lazy val morkDCSchemeDef: OWLClassExpression =
+        getClassExpression(":TaxonomyScheme", morkPrefixManager).getNNF
+    private lazy val morkAttributeDef: OWLClassExpression =
+        getClassExpression(":Attribute", morkPrefixManager)
+    private lazy val morkAnonEntityDef: OWLClassExpression =
+        getClassExpression(":AnonymousElement", morkPrefixManager).getNNF
+    private lazy val morkCollectionElemDef: OWLClassExpression =
+        getClassExpression(":ScalarValueElement", morkPrefixManager)
+    private lazy val morkEntityDef: OWLClassExpression =
+        getClassExpression(":Entity", morkPrefixManager)
+    private lazy val morkArrayDef: OWLClassExpression =
+        getClassExpression(":Array", morkPrefixManager).getNNF
+    private lazy val morkConceptDef: OWLClassExpression =
+        getClassExpression(":DataConcept", morkPrefixManager)
+    private lazy val morkObjectificationDef: OWLClassExpression =
+        getClassExpression(":Objectification", morkPrefixManager)
 
     private lazy val representationSchemeID: String = scheme("Representation")
     private lazy val taxaSchemeID: String = scheme("Taxa")
@@ -56,6 +68,8 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         factory.getOWLObjectProperty(morkBroadConceptRoleKey, morkPrefixManager).getIRI
     private lazy val morkAssociativeNarrowConceptRoleIRI =
         factory.getOWLObjectProperty(morkNarrowConceptRoleKey, morkPrefixManager).getIRI
+
+    def factory: OWLDataFactory = manager.getOWLDataFactory
 
     private def scheme(suffix: String): String = shortName(config.kromBaseIRI) + "_" + suffix
 
@@ -98,8 +112,6 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         case TaxonomyScheme extends ConceptScheme(conceptScheme, ":conceptScheme")
         case NoScheme extends ConceptScheme(bottom, ":intransitiveExactMatch")
 
-    private def getMorkClass(shortName: String) = factory.getOWLClass(shortName, morkPrefixManager)
-
     private def init(): Unit =
         val iriMapper = new SimpleIRIMapper(morkBaseIRI, morkIRI)
         manager.getIRIMappers.add(iriMapper)
@@ -113,11 +125,11 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
 
         val noScheme = ConceptScheme.NoScheme
         val rep = assertIndividual(representationSchemeID, morkRepSchemeDef,
-                                   skipIdent = true, noPrefix = true, scheme = noScheme)
+            skipIdent = true, noPrefix = true, scheme = noScheme)
         assertSkosNote("Representation Concept Scheme", rep)
 
         val taxa = assertIndividual(taxaSchemeID, morkDCSchemeDef,
-                                    skipIdent = true, noPrefix = true, scheme = noScheme)
+            skipIdent = true, noPrefix = true, scheme = noScheme)
         assertSkosNote("Taxonomy Concept Scheme", taxa)
 
         logger.whenDebugEnabled {
@@ -134,8 +146,8 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
                 ax.getNestedClassExpressions.forEach { (cls: OWLClassExpression) =>
                     val oCls = cls.asOWLClass()
                     logger.debug("toStringID: " + oCls.toStringID +
-                                 ", toString: " + oCls.toString +
-                                 ", IRI: " + oCls.getIRI)
+                        ", toString: " + oCls.toString +
+                        ", IRI: " + oCls.getIRI)
                 }
             }
         }
@@ -208,7 +220,7 @@ class Ontology private (val config: KromConfig, val ontology: OWLOntology,
         val id = subjName.capitalize + "_" + objName.capitalize
         val objFact: OWLNamedIndividual =
             assertIndividual(id, morkObjectificationDef,
-                             skipIdent = true, scheme = ConceptScheme.TaxonomyScheme)
+                skipIdent = true, scheme = ConceptScheme.TaxonomyScheme)
         assertObjectProperty(objFact, morkBroadConceptRoleKey, subj)
         assertObjectProperty(objFact, morkNarrowConceptRoleKey, obj)
 
