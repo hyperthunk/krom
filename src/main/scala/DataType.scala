@@ -19,7 +19,6 @@ case object XsdFloat extends DataType
 case object XsdBool extends DataType
 case object XsdNull extends DataType
 
-
 trait Typeable[A]:
     extension (a: A) def asType[T]: T
     extension (b: A) def asString: String
@@ -28,56 +27,65 @@ trait Typeable[A]:
 class Scalar(val value: Any) {
     override def toString: String = "JsonValue(" + value.toString + ")"
 
-    def assertDatatypeProperty(propertyKey: String,
-                               individual: OWLNamedIndividual,
-                               factory: OWLDataFactory,
-                               mappingPrefixManager: PrefixManager): Option[OWLDataPropertyAssertionAxiom] = {
-        val dpEx = factory.getOWLDataProperty(propertyKey, mappingPrefixManager)
-        this.value match {
-            case i: Int => Some(write(i, dpEx, individual, factory))
-            case f: Float => Some(write(f, dpEx, individual, factory))
-            case d: Double => Some(write(d, dpEx, individual, factory))
-            case b: Boolean => Some(write(b, dpEx, individual, factory))
-            case s: String => {
-                if s == null then None
-                else Some(write(s, dpEx, individual, factory))
-            }
+    trait DataPropertyWriter[T] {
+        def write(
+                     value: T,
+                     dpEx: OWLDataProperty,
+                     individual: OWLNamedIndividual,
+                     factory: OWLDataFactory
+                 ): OWLDataPropertyAssertionAxiom
+    }
+
+    object DataPropertyWriter {
+        given DataPropertyWriter[Int] with {
+            def write(value: Int, dpEx: OWLDataProperty, individual: OWLNamedIndividual, factory: OWLDataFactory) =
+                factory.getOWLDataPropertyAssertionAxiom(dpEx, individual, value)
+        }
+
+        given DataPropertyWriter[Float] with {
+            def write(value: Float, dpEx: OWLDataProperty, individual: OWLNamedIndividual, factory: OWLDataFactory) =
+                factory.getOWLDataPropertyAssertionAxiom(dpEx, individual, value)
+        }
+
+        given DataPropertyWriter[Double] with {
+            def write(value: Double, dpEx: OWLDataProperty, individual: OWLNamedIndividual, factory: OWLDataFactory): OWLDataPropertyAssertionAxiom =
+                factory.getOWLDataPropertyAssertionAxiom(dpEx, individual, value)
+        }
+
+        given DataPropertyWriter[Boolean] with {
+            def write(value: Boolean, dpEx: OWLDataProperty, individual: OWLNamedIndividual, factory: OWLDataFactory): OWLDataPropertyAssertionAxiom =
+                factory.getOWLDataPropertyAssertionAxiom(dpEx, individual, value)
+        }
+
+        given DataPropertyWriter[String] with {
+            def write(value: String, dpEx: OWLDataProperty, individual: OWLNamedIndividual, factory: OWLDataFactory): OWLDataPropertyAssertionAxiom =
+                factory.getOWLDataPropertyAssertionAxiom(dpEx, individual, value)
         }
     }
 
-    def write(s: String,
-              dpEx: OWLDataProperty,
-              individual: OWLNamedIndividual,
-              factory: OWLDataFactory): OWLDataPropertyAssertionAxiom = {
-        factory.getOWLDataPropertyAssertionAxiom.apply(dpEx, individual, s)
-    }
+    private def writeValue[T](value: T,
+                              dpEx: OWLDataProperty,
+                              individual: OWLNamedIndividual,
+                              factory: OWLDataFactory)
+                             (using writer: DataPropertyWriter[T]) =
+        writer.write(value, dpEx, individual, factory)
 
-    def write(i: Int,
-              dpEx: OWLDataProperty,
-              individual: OWLNamedIndividual,
-              factory: OWLDataFactory): OWLDataPropertyAssertionAxiom = {
-        factory.getOWLDataPropertyAssertionAxiom.apply(dpEx, individual, i)
-    }
-
-    def write(f: Float,
-              dpEx: OWLDataProperty,
-              individual: OWLNamedIndividual,
-              factory: OWLDataFactory): OWLDataPropertyAssertionAxiom = {
-        factory.getOWLDataPropertyAssertionAxiom.apply(dpEx, individual, f)
-    }
-
-    def write(d: Double,
-              dpEx: OWLDataProperty,
-              individual: OWLNamedIndividual,
-              factory: OWLDataFactory): OWLDataPropertyAssertionAxiom = {
-        factory.getOWLDataPropertyAssertionAxiom.apply(dpEx, individual, d)
-    }
-
-    def write(b: Boolean,
-              dpEx: OWLDataProperty,
-              individual: OWLNamedIndividual,
-              factory: OWLDataFactory): OWLDataPropertyAssertionAxiom = {
-        factory.getOWLDataPropertyAssertionAxiom.apply(dpEx, individual, b)
+    def assertDatatypeProperty(
+                                  propertyKey: String,
+                                  individual: OWLNamedIndividual,
+                                  factory: OWLDataFactory,
+                                  mappingPrefixManager: PrefixManager
+                              ): Option[OWLDataPropertyAssertionAxiom] = {
+        val dpEx = factory.getOWLDataProperty(propertyKey, mappingPrefixManager)
+        value match {
+            case null => None
+            case v: Int => Some(writeValue(v, dpEx, individual, factory))
+            case v: Float => Some(writeValue(v, dpEx, individual, factory))
+            case v: Double => Some(writeValue(v, dpEx, individual, factory))
+            case v: Boolean => Some(writeValue(v, dpEx, individual, factory))
+            case v: String => if (v == null) None else Some(writeValue(v, dpEx, individual, factory))
+            case _ => None
+        }
     }
 }
 object Scalar {
@@ -86,42 +94,37 @@ object Scalar {
 private object JsonNull extends Scalar(Some(null))
 
 given Typeable[Scalar] with
+    private trait ToDataType[A] {
+        def toDataType: DataType
+    }
+
+    private object ToDataType {
+        given ToDataType[Int] with
+            def toDataType: DataType = XsdInt
+
+        given ToDataType[Float] with
+            def toDataType: DataType = XsdFloat
+
+        given ToDataType[Double] with
+            def toDataType: DataType = XsdFloat // Or a Double variant
+
+        given ToDataType[Boolean] with
+            def toDataType: DataType = XsdBool
+
+        given ToDataType[String] with
+            def toDataType: DataType = XsdString
+    }
     extension (w: Scalar) def asType[T]: T = w.value.asInstanceOf[T]
     extension (w: Scalar) def asString: String = w.value.toString
     extension (w: Scalar) def xsdType: DataType = {
-        //TODO: this is SO gross, refactor to use higher order types...
-        /* Co-Pilot Suggests:
-        trait XsdTypeMapper[A] {
-          def xsdType: DataType
-        }
-
-        object XsdTypeMapper {
-          given XsdTypeMapper[Int] with { def xsdType = XsdInt }
-          given XsdTypeMapper[Float] with { def xsdType = XsdFloat }
-          given XsdTypeMapper[Double] with { def xsdType = XsdFloat } // Or a Double variant
-          given XsdTypeMapper[Boolean] with { def xsdType = XsdBool }
-          given XsdTypeMapper[String] with { def xsdType = XsdString }
-        }
-
-        class Scalar(val value: Any) {
-          override def toString: String = s"JsonValue($value)"
-          def xsdType: DataType = value match {
-            case null      => XsdNull
-            case v: Int    => summon[XsdTypeMapper[Int]].xsdType
-            case v: Float  => summon[XsdTypeMapper[Float]].xsdType
-            case v: Double => summon[XsdTypeMapper[Double]].xsdType
-            case v: Boolean=> summon[XsdTypeMapper[Boolean]].xsdType
-            case v: String => summon[XsdTypeMapper[String]].xsdType
-            case _         => XsdString // fallback
-          }
-        }
-         */
         w.value match {
-            case _: Int => XsdInt
-            case _: Float => XsdFloat
-            case _: Double => XsdFloat
-            case _: Boolean => XsdBool
-            case _ => if w.value == null then XsdNull else XsdString
+            case null      => XsdNull
+            case v: Int    => summon[ToDataType[Int]].toDataType
+            case v: Float  => summon[ToDataType[Float]].toDataType
+            case v: Double => summon[ToDataType[Double]].toDataType
+            case v: Boolean=> summon[ToDataType[Boolean]].toDataType
+            case v: String => summon[ToDataType[String]].toDataType
+            case _         => XsdString // fallback
         }
     }
 
