@@ -119,11 +119,11 @@ given Typeable[Scalar] with
     extension (w: Scalar) def xsdType: DataType = {
         w.value match {
             case null      => XsdNull
-            case v: Int    => summon[ToDataType[Int]].toDataType
-            case v: Float  => summon[ToDataType[Float]].toDataType
-            case v: Double => summon[ToDataType[Double]].toDataType
-            case v: Boolean=> summon[ToDataType[Boolean]].toDataType
-            case v: String => summon[ToDataType[String]].toDataType
+            case _: Int    => summon[ToDataType[Int]].toDataType
+            case _: Float  => summon[ToDataType[Float]].toDataType
+            case _: Double => summon[ToDataType[Double]].toDataType
+            case _: Boolean=> summon[ToDataType[Boolean]].toDataType
+            case _: String => summon[ToDataType[String]].toDataType
             case _         => XsdString // fallback
         }
     }
