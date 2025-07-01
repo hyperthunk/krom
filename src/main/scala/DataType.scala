@@ -63,7 +63,7 @@ class Scalar(val value: Any) {
         }
     }
 
-    private def writeValue[T](value: T,
+    private def assertDataProperty[T](value: T,
                               dpEx: OWLDataProperty,
                               individual: OWLNamedIndividual,
                               factory: OWLDataFactory)
@@ -79,11 +79,12 @@ class Scalar(val value: Any) {
         val dpEx = factory.getOWLDataProperty(propertyKey, mappingPrefixManager)
         value match {
             case null => None
-            case v: Int => Some(writeValue(v, dpEx, individual, factory))
-            case v: Float => Some(writeValue(v, dpEx, individual, factory))
-            case v: Double => Some(writeValue(v, dpEx, individual, factory))
-            case v: Boolean => Some(writeValue(v, dpEx, individual, factory))
-            case v: String => if (v == null) None else Some(writeValue(v, dpEx, individual, factory))
+            case i: Int => Some(assertDataProperty(i, dpEx, individual, factory))
+            case f: Float => Some(assertDataProperty(f, dpEx, individual, factory))
+            case d: Double => Some(assertDataProperty(d, dpEx, individual, factory))
+            case b: Boolean => Some(assertDataProperty(b, dpEx, individual, factory))
+            case s: String => if (s == null) None
+                              else Some(assertDataProperty(s, dpEx, individual, factory))
             case _ => None
         }
     }
