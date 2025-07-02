@@ -1,6 +1,6 @@
 import sbt._
 import Keys._
-ThisBuild / version := "0.1.4-SNAPSHOT"
+ThisBuild / version := "0.1.5-SNAPSHOT"
 
 ThisBuild / scalaVersion := "3.7.1"
 
