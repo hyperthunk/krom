@@ -425,7 +425,7 @@ class Ontology private (config: KromConfig,
         properties.assertDatatypeProperty(individual, morkOrderedItemsKey, Scalar(false))
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
-        val individual = individuals.assertAttribute(what)
+        val individual = individuals.assertAttribute(where.concat("_").concat(what))
         properties.memberProperty(representationScheme.getNamedIndividual(where), individual)
         taxonomyScheme.assertInScheme(individual, properties)
 
