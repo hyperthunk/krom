@@ -272,7 +272,7 @@ private class PropertyAxioms(final val ontology: OWLOntology,
     def assertObjectProperty(subject: OWLNamedIndividual, propertyName: String,
                              obj: OWLNamedIndividual): (sub: OWLNamedIndividual, obj: OWLNamedIndividual) =
         val factory = manager.getOWLDataFactory
-        val expr = factory.getOWLObjectProperty(propertyName, prefixManager)
+        val expr = factory.getOWLObjectProperty(propertyName, prefixes.mork)
         val propAssertion = factory.getOWLObjectPropertyAssertionAxiom(expr, subject, obj)
 
         manager.applyChange(AddAxiom(ontology, propAssertion))
