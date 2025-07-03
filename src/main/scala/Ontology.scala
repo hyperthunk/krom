@@ -141,7 +141,7 @@ private class IndividualAxioms(final val config: KromConfig,
     }
 
     def assertAttribute(where: String, what: String): OWLNamedIndividual = {
-        val id = where.concat("_").concat(what)
+        val id = s"$where.$what"
         val individual = assertIndividual(id, morkAttributeDef,
                                           altIdent = Some(what), scheme = schemes.repScheme)
         // set path attribute if possible via the broader concept
@@ -165,7 +165,7 @@ private class IndividualAxioms(final val config: KromConfig,
             (odp: OWLDataProperty) => {
                 if odp.equals(prop) then {
                     val whereIdent = dp.getObject.getLiteral
-                    val path = whereIdent.concat(dot).concat(ident)
+                    val path = s"$whereIdent$dot$ident"
                     PropertyAxioms.assertDatatypeProperty(to, morkPathPropertyKey,
                         Scalar(path), ontology, factory, manager, prefixes.mork)
                     true
