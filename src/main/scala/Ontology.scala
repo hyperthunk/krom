@@ -149,24 +149,23 @@ private class IndividualAxioms(final val config: KromConfig,
         assertConcept(bindPath(broader, individual, what))
     }
 
-    def bindPath(from: OWLNamedIndividual, to: OWLNamedIndividual, ident: String): OWLNamedIndividual = {
-        if !concatPath(from, to, ident, morkPathPropertyKey) then {
-            concatPath(from, to, ident, morkIdentifierPropertyKey)
+    def bindPath(from: OWLNamedIndividual, to: OWLNamedIndividual,
+                 ident: String, dot: String = "."): OWLNamedIndividual = {
+        if !concatPath(from, to, ident, morkPathPropertyKey, dot) then {
+            concatPath(from, to, ident, morkIdentifierPropertyKey, dot)
         }
         to
     }
 
-    private def concatPath(from: OWLNamedIndividual,
-                           to: OWLNamedIndividual,
-                           ident: String,
-                           pathKey: String): Boolean = {
+    private def concatPath(from: OWLNamedIndividual, to: OWLNamedIndividual,
+                           ident: String, pathKey: String, dot: String): Boolean = {
 
         val prop = factory.getOWLDataProperty(pathKey, prefixes.mork).asOWLDataProperty
         def bind(dp: OWLDataPropertyAssertionAxiom): Predicate[OWLDataProperty] = {
             (odp: OWLDataProperty) => {
                 if odp.equals(prop) then {
                     val whereIdent = dp.getObject.getLiteral
-                    val path = whereIdent.concat(".").concat(ident)
+                    val path = whereIdent.concat(dot).concat(ident)
                     PropertyAxioms.assertDatatypeProperty(to, morkPathPropertyKey,
                         Scalar(path), ontology, factory, manager, prefixes.mork)
                     true
@@ -321,16 +320,26 @@ object PropertyAxioms {
         }
 }
 
+// NB: NOT THREAD SAFE
 class Ontology private (config: KromConfig,
                         ontology: OWLOntology,
                         factory: OWLDataFactory,
                         manager: OWLOntologyManager) extends Initialized(manager.getOWLDataFactory) {
 
+    private final val morkOrderedItemsKey = ":orderedItems"
+    private final val morkBroadConceptRoleKey = ":broadConceptRole"
+    private final val morkNarrowConceptRoleKey = ":narrowConceptRole"
+    private final val morkRepresentedAsKey = ":representedAs"
+    private final val morkRepresentationOfKey = ":representationOf"
+    private final val morkExternalPropertyValueKey = ":externalPropertyValue"
+    private final val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
+
     private val counter = new AtomicLong(Integer.MAX_VALUE)
     private val morkIRI = IRI.create(config.morkURL)
     private val morkBaseIRI = IRI.create(config.morkBaseIRI)
     private val skosBaseIRI = IRI.create(config.skosBaseIRI)
-    private val anonymousEntities: mutable.Set[String] = mutable.HashSet.empty
+    private val anonymousEntities: mutable.Map[String, OWLNamedIndividual] = mutable.HashMap.empty
+    private val scalarValues: mutable.Map[String, Int] = mutable.HashMap.empty
 
     private lazy val morkPrefixManager = new DefaultPrefixManager(null, null, config.morkBaseIRI + "#")
     private lazy val mappingPrefixManager = new DefaultPrefixManager(null, null, config.kromBaseIRI + "#")
@@ -368,7 +377,7 @@ class Ontology private (config: KromConfig,
     private lazy val morkAssociativeNarrowConceptRoleIRI =
         factory.getOWLObjectProperty(morkNarrowConceptRoleKey, morkPrefixManager).getIRI
 
-    private def init(): Unit =
+    private def init(): Ontology =
         val iriMapper = new SimpleIRIMapper(morkBaseIRI, morkIRI)
         manager.getIRIMappers.add(iriMapper)
         manager.loadOntology(morkBaseIRI)
@@ -408,6 +417,7 @@ class Ontology private (config: KromConfig,
                 }
             }
         }
+        this
 
     def print(): Unit =
         ontology.getABoxAxioms(Imports.EXCLUDED).forEach { (ax: OWLAxiom) =>
@@ -435,22 +445,38 @@ class Ontology private (config: KromConfig,
         representationScheme.prefixed("Anon_" + counter.incrementAndGet().toString)
 
     def addRepEntityAnon(to: String): String =
-        if anonymousEntities.contains(to) then to
-        else
-            // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
-            val id = anonID
-            anonymousEntities += id
-            val individual = individuals.assertAnonymousEntity(id)
+        anonymousEntities.get(to) match {
+            case None =>
+                // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
+                val id = anonID
+                val individual = individuals.assertAnonymousEntity(id)
+                anonymousEntities.put(to, individual)
 
-            val propIndividual = representationScheme.getNamedIndividual(to)
-            properties.assertElementType(propIndividual, individual)
-            objectifyAssociation(to, individuals.getNamedIndividual(to, representationScheme), id, individual)
-            id
+                val propIndividual = representationScheme.getNamedIndividual(to)
+                properties.assertElementType(propIndividual, individual)
+
+                individuals.bindPath(propIndividual, individual, "[n]", dot = "")
+
+                objectifyAssociation(to, individuals.getNamedIndividual(to, representationScheme), id, individual)
+                id
+            case Some(ent) =>
+                val entID = ent.getIRI.toString.split("#").last
+                anonymousEntities.put(to, ent)
+                entID
+        }
 
     def addCollectionElement(to: String, dataType: DataType): Unit =
         val id = to.concat("_Element").concat(counter.incrementAndGet().toString)
         val individual = individuals.assertArrayEntity(id)
-        properties.assertElementType(representationScheme.getNamedIndividual(to), individual)
+        val broader = representationScheme.getNamedIndividual(to)
+
+        val index = scalarValues.get(to) match {
+            case None => 0
+            case Some(count) => count + 1
+        }
+        individuals.bindPath(broader, individual, s"[$index]", dot = "")
+
+        properties.assertElementType(broader, individual)
         val propIRI = properties.assertDataPropertyRange(id, morkCollectionElementScalarValueKey, dataType)
         val propIndividual = representationScheme.getNamedIndividual(propIRI.getIRIString)
         properties.assertObjectProperty(propIndividual, morkRepresentedAsKey, individual)
@@ -478,6 +504,9 @@ class Ontology private (config: KromConfig,
         properties.assertObjectProperty(propIndividual, morkRepresentedAsKey, individual)
         annotations.assertRdfsSeeAlso(propIRI, individual)
 
+    private def assertDataPropertyRange(id: String, dataType: DataType): IRI =
+        properties.assertDataPropertyRange(":ex_prop_" + id, morkExternalPropertyValueKey, dataType)
+
     // properties are inherent data concepts that must be reified
     private def objectifyAssociation(subjName: String,
                                      subj: OWLNamedIndividual,
@@ -494,35 +523,13 @@ class Ontology private (config: KromConfig,
         annotations.assertRdfsSeeAlso(morkAssociativeBroadConceptRoleIRI, objFact)
         annotations.assertRdfsSeeAlso(morkAssociativeNarrowConceptRoleIRI, objFact)
 
-    private def assertDataPropertyRange(id: String, dataType: DataType): IRI =
-        assertDataPropertyRange(":ex_prop_" + id, morkExternalPropertyValueKey, dataType)
-
-    private def assertDataPropertyRange(id: String, propKey: String, dataType: DataType): IRI =
-        val identProp = factory.getOWLDataProperty(propKey, morkPrefixManager)
-        val dpEx = factory.getOWLDataProperty(id, mappingPrefixManager)
-        val subPropAxiom = factory.getOWLSubDataPropertyOfAxiom(dpEx, identProp)
-        val rangeAxiom = factory.getOWLDataPropertyRangeAxiom(dpEx, dataType.toOwlDataType(factory))
-
-        manager.applyChange(AddAxiom(ontology, subPropAxiom))
-        manager.applyChange(AddAxiom(ontology, rangeAxiom))
-        dpEx.getIRI
-
 }
 
 object Ontology {
-    private val morkOrderedItemsKey = ":orderedItems"
-    private val morkBroadConceptRoleKey = ":broadConceptRole"
-    private val morkNarrowConceptRoleKey = ":narrowConceptRole"
-    private val morkRepresentedAsKey = ":representedAs"
-    private val morkRepresentationOfKey = ":representationOf"
-    private val morkExternalPropertyValueKey = ":externalPropertyValue"
-    private val morkCollectionElementScalarValueKey = ":collectionElementScalarValue"
-
     def openOntology(config: KromConfig): Ontology = {
         val manager = OWLManager.createOWLOntologyManager()
         val ontology = manager.createOntology(IRI.create(config.kromBaseIRI))
         val ont = new Ontology(config, ontology, manager.getOWLDataFactory, manager)
         ont.init()
-        ont
     }
 }
