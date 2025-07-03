@@ -10,6 +10,7 @@ import org.semanticweb.owlapi.util.{DefaultPrefixManager, SimpleIRIMapper}
 
 import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicLong
+import java.util.function.Predicate
 import scala.collection.mutable
 import scala.language.postfixOps;
 
@@ -124,23 +125,63 @@ private class IndividualAxioms(final val config: KromConfig,
     private lazy val morkObjectificationDef: OWLClassExpression =
         getClassExpression(":Objectification", prefixes.mork)
 
-    private val skosBaseIRI = config.skosBaseIRI
     private val morkIdentifierPropertyKey = ":identifier"
+    private val morkPathPropertyKey = ":path"
     private val propertyFactory = PropertyAxioms(ontology, manager, prefixes)
 
     def getNamedIndividual(subject: String, scheme: Scheme): OWLNamedIndividual =
         super.getPrefixedNamedIndividual(scheme.prefixed(subject))
 
     def assertAnonymousEntity(id: String): OWLNamedIndividual = {
-        assertIndividual(id, morkAnonEntityDef, noIdent = true, scheme = schemes.repScheme)
+        assertIndividual(id, morkAnonEntityDef, altIdent = Some(""), scheme = schemes.repScheme)
     }
 
     def assertArrayEntity(id: String): OWLNamedIndividual = {
         assertIndividual(id, morkCollectionElemDef, scheme = schemes.repScheme)
     }
 
-    def assertAttribute(id: String): OWLNamedIndividual = {
-        assertConcept(assertIndividual(id, morkAttributeDef, scheme = schemes.repScheme))
+    def assertAttribute(where: String, what: String): OWLNamedIndividual = {
+        val id = where.concat("_").concat(what)
+        val individual = assertIndividual(id, morkAttributeDef,
+                                          altIdent = Some(what), scheme = schemes.repScheme)
+        // set path attribute if possible via the broader concept
+        val broader = getNamedIndividual(where, schemes.repScheme)
+        assertConcept(bindPath(broader, individual, what))
+    }
+
+    def bindPath(from: OWLNamedIndividual, to: OWLNamedIndividual, ident: String): OWLNamedIndividual = {
+        if !concatPath(from, to, ident, morkPathPropertyKey) then {
+            concatPath(from, to, ident, morkIdentifierPropertyKey)
+        }
+        to
+    }
+
+    private def concatPath(from: OWLNamedIndividual,
+                           to: OWLNamedIndividual,
+                           ident: String,
+                           pathKey: String): Boolean = {
+
+        val prop = factory.getOWLDataProperty(pathKey, prefixes.mork).asOWLDataProperty
+        def bind(dp: OWLDataPropertyAssertionAxiom): Predicate[OWLDataProperty] = {
+            (odp: OWLDataProperty) => {
+                if odp.equals(prop) then {
+                    val whereIdent = dp.getObject.getLiteral
+                    val path = whereIdent.concat(".").concat(ident)
+                    PropertyAxioms.assertDatatypeProperty(to, morkPathPropertyKey,
+                        Scalar(path), ontology, factory, manager, prefixes.mork)
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+
+        val assertions: Array[OWLDataPropertyAssertionAxiom] = Array.empty
+        val axioms = ontology.getDataPropertyAssertionAxioms(from).toArray(assertions)
+        val bound = axioms.find { (dp: OWLDataPropertyAssertionAxiom) =>
+            dp.dataPropertiesInSignature.anyMatch(bind(dp))
+        }
+        bound.isDefined
     }
 
     def assertEntity(id: String): OWLNamedIndividual = {
@@ -158,7 +199,7 @@ private class IndividualAxioms(final val config: KromConfig,
     def assertIndividual(id: String,
                          ofClass: OWLClassExpression,
                          skipIdent: Boolean = false,
-                         noIdent: Boolean = false,
+                         altIdent: Option[String] = None,
                          noPrefix: Boolean = false,
                          scheme: Scheme): OWLNamedIndividual =
 
@@ -166,10 +207,10 @@ private class IndividualAxioms(final val config: KromConfig,
         else this.getNamedIndividual(id, scheme)
         assertClass(individual, ofClass)
 
-        val identifiedIndividual = (skipIdent, noIdent) match {
+        val identifiedIndividual = (skipIdent, altIdent) match {
             case (true, _) => individual
-            case (false, true) => identifyIndividual("", assertSkosRepNote(id, individual, scheme))
-            case (_, false) => identifyIndividual(id, assertSkosRepNote(id, individual, scheme))
+            case (false, Some(alt)) => identifyIndividual(alt, assertSkosRepNote(id, individual, scheme))
+            case (_, None) => identifyIndividual(id, assertSkosRepNote(id, individual, scheme))
         }
         scheme.assertInScheme(identifiedIndividual, propertyFactory)
         identifiedIndividual
@@ -386,6 +427,7 @@ class Ontology private (config: KromConfig,
         val child = individuals.getNamedIndividual(narrower, representationScheme)
         val parent = individuals.getNamedIndividual(broader, representationScheme)
         val (subj, obj) = properties.memberProperty(parent, child)
+        individuals.bindPath(subj, obj, narrower)
         objectifyAssociation(broader, subj, narrower, obj)
 
     // TODO: SWRL (or SHACL) axioms to correlate anonymous members that share the same type def
@@ -425,9 +467,11 @@ class Ontology private (config: KromConfig,
         properties.assertDatatypeProperty(individual, morkOrderedItemsKey, Scalar(false))
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
-        val individual = individuals.assertAttribute(where.concat("_").concat(what))
-        properties.memberProperty(representationScheme.getNamedIndividual(where), individual)
+        val individual = individuals.assertAttribute(where, what)
+        val (sub, obj) = properties.memberProperty(representationScheme.getNamedIndividual(where), individual)
         taxonomyScheme.assertInScheme(individual, properties)
+
+        individuals.bindPath(sub, obj, what)
 
         val propIRI = assertDataPropertyRange(what, underlying.xsdType)
         val propIndividual = representationScheme.getNamedIndividual(propIRI.getIRIString)
