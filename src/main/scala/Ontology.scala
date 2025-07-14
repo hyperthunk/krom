@@ -2,7 +2,7 @@ package org.nebularis.krom
 
 import com.typesafe.scalalogging.LazyLogging
 import org.nebularis.krom.DataType
-    import org.semanticweb.owlapi.apibinding.OWLManager
+import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
 import org.semanticweb.owlapi.util.{DefaultPrefixManager, SimpleIRIMapper}
