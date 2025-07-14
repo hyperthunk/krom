@@ -72,8 +72,14 @@ case class JBOFState(parser: JacksonParser, ontology: Ontology)
         extends ParserState(parser = parser, ontology = ontology), Logger("BOF") {
     override def nextState(id: String, token: JsonToken): ParserState = {
         token match {
-            case START_OBJECT => JObjState(id, this, parser, ontology)
-            case START_ARRAY => JListState(id, this, parser, ontology)
+            case START_OBJECT =>
+                // before we kick off with the 'inner' object, we should assert the
+                // top level binding, which will add 'path="s"' to the root
+                ontology.addRepresentationEntity("$")
+                JObjState(id, this, parser, ontology)
+            case START_ARRAY =>
+                // TODO: this is not really a valid state for a mork transform!
+                JListState(id, this, parser, ontology)
             case _ => invalidState(id, token)
         }
     }
@@ -85,14 +91,21 @@ case class JObjState(id: String, outer: ParserState, parser: JacksonParser, onto
         token match {
             case END_OBJECT => outer
             case FIELD_NAME =>
-                debug((id, token))
+                debug((safeId, token))
                 JPropState(this, parser, ontology)
             case VALUE_EMBEDDED_OBJECT =>
                 debug("VALUE_EMBEDDED_OBJECT - CURRENTLY UNSUPPORTED")
-                throwJPEx(this, "VALUE_EMBEDDED_OBJECT @" + id)
-            case _ => invalidState(id, token)
+                throwJPEx(this, "VALUE_EMBEDDED_OBJECT @" + safeId)
+            case _ => invalidState(safeId, token)
         }
     }
+
+    def safeId: String =
+        if id == null then outer match {
+            case _:JBOFState => "$"
+            case _ => id
+        }
+        else id
 }
 
 case class JListState(listID: String, outer: JBOFState | JPropState, parser: JacksonParser, ontology: Ontology)
@@ -136,13 +149,13 @@ case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontolog
 
         def addRepProp(sid: String)(ent: String => Unit): Unit = {
             ent(sid)
-            if outer.id != null then ontology.addMemberProperty(outer.id, sid)
+            ontology.addMemberProperty(outer.safeId, sid)
         }
 
         def addAttr[T](att: T): ParserState = {
             val underlying = Scalar(att)
             debug(("write value", id, underlying.asType[T], underlying.xsdType, token))
-            ontology.addRepresentationAttribute(outer.id, id, underlying)
+            ontology.addRepresentationAttribute(outer.safeId, id, underlying)
             this
         }
 
@@ -167,7 +180,7 @@ case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontolog
             case VALUE_NULL =>
                 val underlying = JsonNull
                 debug(("write value", id, underlying, underlying.xsdType, token))
-                ontology.addRepresentationAttribute(outer.id, id, underlying)
+                ontology.addRepresentationAttribute(outer.safeId, id, underlying)
                 this
             case VALUE_EMBEDDED_OBJECT =>
                 debug("VALUE_EMBEDDED_OBJECT - CURRENTLY UNSUPPORTED")

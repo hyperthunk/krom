@@ -2,6 +2,7 @@
   "contract": {
     "signatories": {
       "issuer": {
+        "id": 17691,
         "name": "Bob The Builder Enterprises, LLP"
       },
       "contractingParties": [

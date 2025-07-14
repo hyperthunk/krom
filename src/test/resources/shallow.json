@@ -1,0 +1,10 @@
+{
+  "Selection": [
+    "FOO",
+    "BAR",
+    "BAZ"
+  ],
+  "desiredStartDate": "2025-04-23",
+  "selectedOption": 1,
+  "isFishy": true
+}
