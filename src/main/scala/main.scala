@@ -6,5 +6,5 @@ import org.nebularis.krom.*
 def main(): Unit =
     val config = KromConfig.load()
     val ont = JsonLoader.load(config)
-    ont.print()
+    // ont.print()
     ont.save()

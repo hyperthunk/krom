@@ -75,7 +75,7 @@ case class JBOFState(parser: JacksonParser, ontology: Ontology)
             case START_OBJECT =>
                 // before we kick off with the 'inner' object, we should assert the
                 // top level binding, which will add 'path="s"' to the root
-                ontology.addRepresentationEntity("$")
+                ontology.addRootEntity()
                 JObjState(id, this, parser, ontology)
             case START_ARRAY =>
                 // TODO: this is not really a valid state for a mork transform!
@@ -147,9 +147,10 @@ case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontolog
 
     override def nextState(id: String, token: JsonToken): ParserState = {
 
-        def addRepProp(sid: String)(ent: String => Unit): Unit = {
-            ent(sid)
-            ontology.addMemberProperty(outer.safeId, sid)
+        def addRepProp(sid: String)(ent: String => String): String = {
+            val sid2 = ent(sid)
+            ontology.addMemberProperty(outer.safeId, sid2)
+            sid2
         }
 
         def addAttr[T](att: T): ParserState = {
@@ -162,12 +163,12 @@ case class JPropState(outer: JObjState, parser: JacksonParser, ontology: Ontolog
         token match {
             case START_OBJECT =>
                 debug((id, token))
-                addRepProp(id) { ontology.addRepresentationEntity.apply }
-                JObjState(id, this, parser, ontology)
+                val id2 = addRepProp(id) { ontology.addRepresentationEntity.apply(outer.safeId, _) }
+                JObjState(id2, this, parser, ontology)
             case START_ARRAY =>
                 debug((id, "array", token))
-                addRepProp(id) { ontology.addRepresentationArray.apply }
-                JListState(id, this, parser, ontology)
+                val id2 = addRepProp(id) { ontology.addRepresentationArray.apply }
+                JListState(id2, this, parser, ontology)
             case END_OBJECT => outer.nextState(id, token)
             case FIELD_NAME =>
                 debug((id, token))
