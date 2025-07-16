@@ -4,13 +4,13 @@
       "upperLimit": 5000000.00,
       "lowerLimit": 1000.00
     },
-    "subObjectData": [
+    "cat1": [
       {
         "field1": "value1",
         "limits": {
           "upperLimit": 250000.00
         },
-        "subSubObjectData": {
+        "cat2": {
           "limits": { "upperLimit": 5005000, "thresholdLimit": 25000.00 }
         }
       }
