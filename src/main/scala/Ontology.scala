@@ -6,6 +6,8 @@ import org.nebularis.krom.LookupResult.{Asserted, Cached}
 import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
+import org.semanticweb.owlapi.model.parameters.Imports.EXCLUDED
+import org.semanticweb.owlapi.model.parameters.Navigation.IN_SUB_POSITION
 import org.semanticweb.owlapi.search.EntitySearcher
 import org.semanticweb.owlapi.util.{DefaultPrefixManager, SimpleIRIMapper}
 
@@ -646,7 +648,6 @@ class Ontology private (config: KromConfig,
     def addRepEntityAnon(to: String): String =
         //NOTE: we eschew dealing with discriminated type definitions here
         // since that is rather complex and better resolved with a json-schema processing approach
-
         anonymousEntities.get(to) match {
             case None =>
                 // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
