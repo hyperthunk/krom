@@ -54,12 +54,17 @@ private trait IndividualSearch(final val factory: OWLDataFactory,
     def getOrAssertPrefixedNamedIndividual(id: String): LookupResult[OWLNamedIndividual] =
         val abbreviatedIRI = ":" + id
         val iri = prefixManager.getIRI(abbreviatedIRI)
+        logger.whenDebugEnabled {
+            logger.debug(s"Lookup or Assert Individual: $id, IRI: $iri")
+        }
         cachedIndividuals.get(iri) match {
             case None =>
+                logger.whenDebugEnabled { logger.debug(s"Asserting new individual for $id, IRI: $iri") }
                 val individual = factory.getOWLNamedIndividual(abbreviatedIRI, prefixManager)
                 cachedIndividuals.put(individual.getIRI, individual)
                 Asserted(individual)
-            case Some(indiv) => Cached(indiv)
+            case Some(indiv) =>
+                Cached(indiv)
         }
 }
 
@@ -200,6 +205,9 @@ private class IndividualAxioms(final val config: KromConfig,
 
     def assertAttribute(where: String, what: String): OWLNamedIndividual = {
         val id = s"${where}_${what}"
+        logger.whenDebugEnabled {
+            logger.debug(s"Asserting Attribute: $id, where: $where, what: $what")
+        }
         val individual = assertRepIndividual(id, morkAttributeDef,
                                           altIdent = Some(what), scheme = schemes.repScheme)
         // set path attribute if possible via the broader concept
@@ -315,11 +323,18 @@ private class IndividualAxioms(final val config: KromConfig,
                     }
                     // we blend the scope and the id to form a new id, like 'Objectification'
                     val newId = s"${objIdent}_${id.capitalize}"  // owl-id of the OWLNamedIndividual
+                    logger.whenDebugEnabled {
+                        logger.debug(s"Duplicating Cached Entity: ${em.base}, newId: $newId, scope: $scopeIri")
+                    }
                     val individual = assertRepIndividual(newId, morkEntityDef,
                                                          altIdent=Some(id),
                                                          scheme = schemes.repScheme)
                     // we need to bind the new individual to the same concept as the cached one
                     val conceptId = schemes.taxaScheme.prefixed(id)
+                    logger.whenDebugEnabled {
+                        logger.debug(s"Binding new individual $newId to concept $conceptId")
+                    }
+
                     val concept = super.getOrAssertPrefixedNamedIndividual(conceptId).result
                     cachedEntities.put(newId, (em.base, concept.getIRI))
                     (newId, individual, concept)
@@ -488,7 +503,9 @@ private class PropertyAxioms(final val ontology: OWLOntology,
         val factory = manager.getOWLDataFactory
         val expr = factory.getOWLObjectProperty(propertyName, prefixes.mork)
         val propAssertion = factory.getOWLObjectPropertyAssertionAxiom(expr, subject, obj)
-
+        logger.whenDebugEnabled {
+            logger.debug(s"Assert Object Property: $propertyName, Subject: ${subject.getIRI}, Object: ${obj.getIRI}")
+        }
         manager.applyChange(AddAxiom(ontology, propAssertion))
         (subject, obj)
 
@@ -533,6 +550,15 @@ object PropertyAxioms {
             case Some(prop) => manager.applyChange(AddAxiom(ontology, prop)); individual
         }
 }
+
+private class MappingAxioms(final val ontology: OWLOntology,
+                            final val manager: OWLOntologyManager,
+                            prefixes: Prefixes)
+    extends IndividualSearch(manager.getOWLDataFactory, prefixes.mapping),
+        Initialized(manager.getOWLDataFactory)
+
+    // assertMapping(): Unit = ()
+
 
 // NB: NOT THREAD SAFE
 class Ontology private (config: KromConfig,
@@ -647,6 +673,7 @@ class Ontology private (config: KromConfig,
         }
 
     def addMemberProperty(broader: String, narrower: String): Unit =
+        logger.debug("Adding member property from " + broader + " to " + narrower)
         val child = individuals.getNamedIndividual(narrower, representationScheme)
         val parent = individuals.getNamedIndividual(broader, representationScheme)
         val (subj, obj) = properties.memberProperty(parent, child)
@@ -661,6 +688,7 @@ class Ontology private (config: KromConfig,
     def addRepEntityAnon(to: String): String =
         //NOTE: we eschew dealing with discriminated type definitions here
         // since that is rather complex and better resolved with a json-schema processing approach
+        logger.debug("Adding anonymous entity for " + to)
         anonymousEntities.get(to) match {
             case None =>
                 // TODO: add a SWRL rule to prevent duplicate element types for anonymous objects in arrays
@@ -706,17 +734,20 @@ class Ontology private (config: KromConfig,
     def addRootEntity(): Unit = individuals.assertRootEntity
 
     def addRepresentationEntity(where: String, id: String): String =
+        logger.debug("Adding representation entity for " + id + " at " + where)
         val added = individuals.assertEntity(where, id)
         properties.assertObjectProperty(added.representation, morkRepresentationOfKey, added.concept)
         added.newId
 
     def addRepresentationArray(id: String): String =
+        logger.debug("Adding representation array for " + id)
         val individual = individuals.assertArray(id)
         properties.assertObjectProperty(individual, morkRepresentationOfKey, individual)
         properties.assertDatatypeProperty(individual, morkOrderedItemsKey, Scalar(false))
         id
 
     def addRepresentationAttribute(where: String, what: String, underlying: Scalar): Unit =
+        logger.debug("Adding representation attribute " + what + " at " + where)
         val individual = individuals.assertAttribute(where, what)
         val (sub, obj) = properties.memberProperty(representationScheme.getNamedIndividual(where), individual)
         taxonomyScheme.assertInScheme(individual, properties)
@@ -724,7 +755,7 @@ class Ontology private (config: KromConfig,
         individuals.bindPath(sub, obj, what)
 
         val propIRI = assertDataPropertyRange(what, underlying.xsdType)
-        val propIndividual = representationScheme.getNamedIndividual(propIRI.getIRIString)
+        val propIndividual = representationScheme.getNamedIndividual(propIRI.getIRIString.split("#").last)
         properties.assertRepresentedAs(propIndividual, individual) //TODO: verify this
         annotations.assertRdfsSeeAlso(propIRI, individual)
 
@@ -751,6 +782,7 @@ class Ontology private (config: KromConfig,
             case _ => ()
         }
 
+        logger.debug(s"Objectifying association $subjName -> $objName with id $id")
         properties.objectifyAssociation(subj, objFact, obj)
 
         val subjectID = taxonomyScheme.prefixed(subjName)

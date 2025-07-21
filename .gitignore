@@ -58,3 +58,4 @@ src/main/scala/JsonLoader.scala
 .idea/workspace.xml
 /project/project
 /project/target
+src/test/resources/Notes.txt

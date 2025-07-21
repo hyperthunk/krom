@@ -6,12 +6,37 @@
     },
     "cat1": [
       {
-        "field1": "value1",
+        "cat-name": "Cat1 Element 1",
         "limits": {
           "upperLimit": 250000.00
         },
         "cat2": {
           "limits": { "upperLimit": 5005000, "thresholdLimit": 25000.00 }
+        }
+      },
+      {
+        "cat-name": "Cat 1 Element 2",
+        "limits": {
+          "upperLimit": 250000.00
+        },
+        "cat2": {
+          "limits": { "upperLimit": 5005000, "thresholdLimit": 25000.00 },
+          "cat3": [
+            {
+              "cat-name": "Sub Cat 2 Element 1",
+              "type-codes": ["Type1", "Type2"],
+              "limits": {
+                "thresholdLimit": 50000.00
+              }
+            },
+            {
+              "cat-name": "Sub Cat 2 Element 2",
+              "type-codes": ["Type1"],
+              "limits": {
+                "thresholdLimit": 50000.00
+              }
+            }
+          ]
         }
       }
     ]
