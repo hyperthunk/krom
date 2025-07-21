@@ -257,6 +257,12 @@ private class IndividualAxioms(final val config: KromConfig,
         bound.isDefined
     }
 
+    private def getPathFor(individual: OWLNamedIndividual): Option[String] =
+        lookupPropertyValue(morkPathPropertyDef, individual) match {
+            case Some(path) => Some(path.getLiteral)
+            case None => None
+        }
+
     private def lookupPropertyValue(prop: OWLDataPropertyExpression,
                                     scope: OWLNamedIndividual): Option[OWLLiteral] =
         val literals = EntitySearcher.getDataPropertyValues(scope, prop, ontology).toList
@@ -290,8 +296,8 @@ private class IndividualAxioms(final val config: KromConfig,
                     }
                 if anonMatch then
                     val path =
-                        lookupPropertyValue(morkPathPropertyDef, scope) match {
-                            case Some(p) => p.getLiteral
+                        getPathFor(scope) match {
+                            case Some(p) => p
                             case None =>
                                 throw new OntologyException(
                                     s"Missing 'path' property for ${scopeIri}", scope)
@@ -312,32 +318,47 @@ private class IndividualAxioms(final val config: KromConfig,
                 case Some(em: EntityMapping) =>
                     // (base = original id, conceptIri = concept entry)
                     val scopeIri = repScheme.prefixed(where)
-                    val scope = super.getOrAssertPrefixedNamedIndividual(scopeIri).result
-                    val objIdent = lookupPropertyValue(morkIdentPropertyDef, scope) match {
-                        case Some(ident) =>
-                            ident.getLiteral match {
-                                case "" => checkAnonScope(scopeIri, scope)
-                                case id => id
+                    val scope = super.getPrefixedNamedIndividual(scopeIri)
+                    // NOTE: we need to check the path for this EntityMapping - if our current path
+                    // is the same, then we must not duplicate the entity, but rather return the cached one
+                    val cachedIndividual = getPrefixedNamedIndividual(repScheme.prefixed(em.base))
+                    val pathProposition = getPathFor(cachedIndividual)
+                    val pathScope = getPathFor(scope)
+                    (pathProposition, pathScope) match {
+                        case (Some(cachedPath), Some(scopePath)) if cachedPath.contains(scopePath) =>
+                            logger.whenDebugEnabled {
+                                logger.debug(s"Using cached individual for $id, path: $cachedPath")
                             }
-                        case None => checkAnonScope(scopeIri, scope)
-                    }
-                    // we blend the scope and the id to form a new id, like 'Objectification'
-                    val newId = s"${objIdent}_${id.capitalize}"  // owl-id of the OWLNamedIndividual
-                    logger.whenDebugEnabled {
-                        logger.debug(s"Duplicating Cached Entity: ${em.base}, newId: $newId, scope: $scopeIri")
-                    }
-                    val individual = assertRepIndividual(newId, morkEntityDef,
-                                                         altIdent=Some(id),
-                                                         scheme = schemes.repScheme)
-                    // we need to bind the new individual to the same concept as the cached one
-                    val conceptId = schemes.taxaScheme.prefixed(id)
-                    logger.whenDebugEnabled {
-                        logger.debug(s"Binding new individual $newId to concept $conceptId")
-                    }
+                            val conceptName = schemes.taxaScheme.prefixed(em.concept.getIRIString.split("#").last)
+                            val conceptIndiv = super.getPrefixedNamedIndividual(conceptName)
+                            (em.base, cachedIndividual, conceptIndiv)
+                        case _ =>
+                            val objIdent = lookupPropertyValue(morkIdentPropertyDef, scope) match {
+                                case Some(ident) =>
+                                    ident.getLiteral match {
+                                        case "" => checkAnonScope(scopeIri, scope)
+                                        case id => id
+                                    }
+                                case None => checkAnonScope(scopeIri, scope)
+                            }
+                            // we blend the scope and the id to form a new id, like 'Objectification'
+                            val newId = s"${objIdent}_${id.capitalize}"  // owl-id of the OWLNamedIndividual
+                            logger.whenDebugEnabled {
+                                logger.debug(s"Duplicating Cached Entity: ${em.base}, newId: $newId, scope: $scopeIri")
+                            }
+                            val individual = assertRepIndividual(newId, morkEntityDef,
+                                altIdent=Some(id),
+                                scheme = schemes.repScheme)
+                            // we need to bind the new individual to the same concept as the cached one
+                            val conceptId = schemes.taxaScheme.prefixed(id)
+                            logger.whenDebugEnabled {
+                                logger.debug(s"Binding new individual $newId to concept $conceptId")
+                            }
 
-                    val concept = super.getOrAssertPrefixedNamedIndividual(conceptId).result
-                    cachedEntities.put(newId, (em.base, concept.getIRI))
-                    (newId, individual, concept)
+                            val concept = super.getOrAssertPrefixedNamedIndividual(conceptId).result
+                            cachedEntities.put(newId, (em.base, concept.getIRI))
+                            (newId, individual, concept)
+                    }
             }
         }
 
@@ -348,10 +369,9 @@ private class IndividualAxioms(final val config: KromConfig,
             // we have created a new individual - we will need to create a DataConcept to bind it to
             val conceptId = schemes.taxaScheme.prefixed(id)
             super.getOrAssertPrefixedNamedIndividual(conceptId) match {
-                case Cached(concept) =>
+                case Cached(_) =>
                     throw new OntologyException(
-                        s"Duplicate DataConcept for '${conceptId}' on individual '${individual.getIRI}'",
-                        individual)
+                        s"Duplicate DataConcept for '${conceptId}' on individual '${individual.getIRI}'", individual)
                     (null, null, null) // unreachable, but the compiler...
                 case Asserted(concept) =>
                     // we need to assert the concept class on the individual
