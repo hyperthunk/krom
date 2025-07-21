@@ -26,7 +26,7 @@ private enum LookupResult[T](thing: T):
 
 type Schemes = (repScheme: RepresentationScheme, taxaScheme: TaxonomyScheme, none: NoScheme)
 type Prefixes = (mork: PrefixManager, mapping: PrefixManager)
-type EntityMapping = (base: IRI, concept: IRI)
+type EntityMapping = (base: String, concept: IRI)
 type AssertedIndividuals =
     (newId: String, representation: OWLNamedIndividual, concept: OWLNamedIndividual)
 
@@ -181,6 +181,12 @@ private class IndividualAxioms(final val config: KromConfig,
                 Some(concept)
         }
 
+    def getBaseIdFor(id: String): Option[String] =
+        cachedEntities.get(id) match {
+            case None => None
+            case Some(mapping) => Some(mapping.base)
+        }
+
     def getNamedIndividual(subject: String, scheme: Scheme): OWLNamedIndividual =
         super.getPrefixedNamedIndividual(scheme.prefixed(subject))
 
@@ -203,8 +209,16 @@ private class IndividualAxioms(final val config: KromConfig,
 
     def bindPath(from: OWLNamedIndividual, to: OWLNamedIndividual,
                  ident: String, delim: String = "."): OWLNamedIndividual = {
-        if !concatPath(from, to, ident, morkPathPropertyKey, delim) then {
-            concatPath(from, to, ident, morkIdentifierPropertyKey, delim)
+        // NB: when the same DataConcept appears in multiple paths (in a representation),
+        // we need to generate unique individuals (with unique OWL names/ids) to avoid
+        // messing up the output graph - yet here, we must look up any potential cached
+        // id for such individuals, and ensure the paths we generate are correct...
+        val pathIdent = getBaseIdFor(ident) match {
+            case None => ident
+            case Some(base) => base
+        }
+        if !concatPath(from, to, pathIdent, morkPathPropertyKey, delim) then {
+            concatPath(from, to, pathIdent, morkIdentifierPropertyKey, delim)
         }
         to
     }
@@ -256,14 +270,10 @@ private class IndividualAxioms(final val config: KromConfig,
         root
 
     def assertEntity(where: String, id: String): AssertedIndividuals = {
-        // TODO: as per #3, we need to ensure each `Entity` is distinct per "path" through the data
-        // NB: We must also bind to the same `DataConcept` if the `Entity` is cached
-
         val repScheme = schemes.repScheme
         val prefixedId = repScheme.prefixed(id)
 
         def handleCached(individual: OWLNamedIndividual): AssertedIndividuals = {
-
             def checkAnonScope(scopeIri: String, scope: OWLNamedIndividual): String = {
                 val scopeClasses = ontology.classAssertionAxioms(scope)
                 val anonMatch =
@@ -292,9 +302,10 @@ private class IndividualAxioms(final val config: KromConfig,
                 case None => //is this actually a runtime error!?
                     throw new OntologyException("Invalid Cache for " + prefixedId, individual)
                 case Some(em: EntityMapping) =>
+                    // (base = original id, conceptIri = concept entry)
                     val scopeIri = repScheme.prefixed(where)
                     val scope = super.getOrAssertPrefixedNamedIndividual(scopeIri).result
-                    val ident = lookupPropertyValue(morkIdentPropertyDef, scope) match {
+                    val objIdent = lookupPropertyValue(morkIdentPropertyDef, scope) match {
                         case Some(ident) =>
                             ident.getLiteral match {
                                 case "" => checkAnonScope(scopeIri, scope)
@@ -303,10 +314,11 @@ private class IndividualAxioms(final val config: KromConfig,
                         case None => checkAnonScope(scopeIri, scope)
                     }
                     // we blend the scope and the id to form a new id, like 'Objectification'
-                    val newId = s"${ident}_${id.capitalize}"
-                    val individual = assertRepIndividual(newId, morkEntityDef, scheme = schemes.repScheme)
+                    val newId = s"${objIdent}_${id.capitalize}"  // owl-id of the OWLNamedIndividual
+                    val individual = assertRepIndividual(newId, morkEntityDef,
+                                                         altIdent=Some(id),
+                                                         scheme = schemes.repScheme)
                     // we need to bind the new individual to the same concept as the cached one
-
                     val conceptId = schemes.taxaScheme.prefixed(id)
                     val concept = super.getOrAssertPrefixedNamedIndividual(conceptId).result
                     cachedEntities.put(newId, (em.base, concept.getIRI))
@@ -330,7 +342,7 @@ private class IndividualAxioms(final val config: KromConfig,
                     // we need to assert the concept class on the individual
                     val identifiedConcept =
                         assertConceptIndividual(concept, id.capitalize)
-                    cachedEntities.put(id, (individual.getIRI, identifiedConcept.getIRI))
+                    cachedEntities.put(id, (id, identifiedConcept.getIRI))
                     (id, individual, identifiedConcept)
             }
 
@@ -387,7 +399,7 @@ private class IndividualAxioms(final val config: KromConfig,
                 configured
             case None =>
                 val base = getOrAssertPrefixedNamedIndividual(what).result
-                cachedEntities.put(what, (base.getIRI, configured.getIRI))
+                cachedEntities.put(what, (id, configured.getIRI))
                 configured
         }
 
@@ -638,6 +650,7 @@ class Ontology private (config: KromConfig,
         val child = individuals.getNamedIndividual(narrower, representationScheme)
         val parent = individuals.getNamedIndividual(broader, representationScheme)
         val (subj, obj) = properties.memberProperty(parent, child)
+
         individuals.bindPath(subj, obj, narrower)
         objectifyAssociation(broader, subj, narrower, obj)
 
